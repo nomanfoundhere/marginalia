@@ -40,5 +40,17 @@
     return bestScore > secondScore ? bestIdx : -1; // strict winner or ambiguous
   }
 
-  return { locateAnchor: locateAnchor };
+  var NOTES_OPEN = '<script id="margin-notes" type="text/plain">';
+  var NOTES_CLOSE = '</script>';
+
+  function reconstructView(pristineHtml, notesPayload) {
+    var start = pristineHtml.indexOf(NOTES_OPEN);
+    if (start === -1) throw new Error('margin-notes block not found');
+    var contentStart = start + NOTES_OPEN.length;
+    var end = pristineHtml.indexOf(NOTES_CLOSE, contentStart);
+    if (end === -1) throw new Error('margin-notes block not closed');
+    return pristineHtml.slice(0, contentStart) + notesPayload + pristineHtml.slice(end);
+  }
+
+  return { locateAnchor: locateAnchor, reconstructView: reconstructView };
 });
