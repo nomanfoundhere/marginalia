@@ -149,17 +149,54 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
     });
   }
 
-  // --- minimal rail (expanded in Task 6) ---
+  // --- threaded rail ---
+  var hideResolved = false;
   function renderRail() {
     rail.innerHTML = '';
     state.notes.forEach(function (n) {
+      if (n.resolved && hideResolved) return;
       var card = document.createElement('div'); card.className = 'mn-card'; card.dataset.note = n.id;
-      var first = n.thread[0] || { body: '' };
-      card.innerHTML = '<div class="who"></div>';
-      card.querySelector('.who').textContent = n.author + (n._located < 0 ? ' · unanchored' : '');
-      var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.value = first.body; ta.rows = 3; ta.style.width = '100%';
-      ta.addEventListener('input', function () { first.body = ta.value; markDirty(); });
-      card.appendChild(ta);
+      card.style.borderLeftColor = n.color || '#6ea0ff';
+      if (n.resolved) card.style.opacity = '.55';
+
+      var head = document.createElement('div'); head.className = 'who';
+      head.textContent = n.author + (n._located < 0 ? ' · unanchored' : '') + (n.resolved ? ' · resolved' : '');
+      card.appendChild(head);
+
+      n.thread.forEach(function (entry, i) {
+        if (i === 0) {
+          var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.value = entry.body; ta.rows = 3; ta.style.width = '100%';
+          ta.addEventListener('input', function () { entry.body = ta.value; markDirty(); });
+          card.appendChild(ta);
+        } else {
+          var p = document.createElement('p'); p.style.margin = '.4rem 0';
+          p.innerHTML = '<strong></strong>: '; p.querySelector('strong').textContent = entry.author;
+          p.appendChild(document.createTextNode(entry.body)); card.appendChild(p);
+        }
+      });
+
+      var bar = document.createElement('div');
+      var reply = document.createElement('button'); reply.textContent = 'reply';
+      reply.addEventListener('click', function () {
+        ensureIdentity();
+        n.thread.push({ author: me, ts: new Date().toISOString(), body: '' });
+        renderRail(); markDirty();
+      });
+      var resolve = document.createElement('button'); resolve.textContent = n.resolved ? 'unresolve' : '✓ resolve';
+      resolve.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
+      var del = document.createElement('button'); del.textContent = 'delete';
+      del.addEventListener('click', function () {
+        state.notes = state.notes.filter(function (x) { return x !== n; });
+        window.MN.state = state; paintHighlights(); renderRail(); markDirty();
+      });
+      bar.appendChild(reply); bar.appendChild(resolve); bar.appendChild(del);
+      card.appendChild(bar);
+
+      card.addEventListener('click', function (e) {
+        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+        var hl = doc.querySelector('mark.mn-hl[data-note="' + n.id + '"]');
+        if (hl) hl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
       rail.appendChild(card);
     });
   }
@@ -173,6 +210,23 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
     isDirty: function () { return dirty; }, setClean: function () { dirty = false; }, me: function () { return me; } };
 
   paintHighlights(); renderRail();
+
+  // --- header controls + highlight -> card scroll ---
+  var header = document.getElementById('margin-header');
+  header.innerHTML = '<span class="grow"></span>';
+  header.querySelector('.grow').textContent = document.title.replace('Margin Notes — ', '');
+  var hr = document.createElement('label'); hr.style.color = '#eee';
+  var cb = document.createElement('input'); cb.type = 'checkbox';
+  cb.addEventListener('change', function () { hideResolved = cb.checked; renderRail(); });
+  hr.appendChild(cb); hr.appendChild(document.createTextNode(' hide resolved'));
+  header.appendChild(hr);
+
+  doc.addEventListener('click', function (e) {
+    var mk = e.target.closest && e.target.closest('mark.mn-hl');
+    if (!mk) return;
+    var card = rail.querySelector('.mn-card[data-note="' + mk.dataset.note + '"]');
+    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  });
 })();
 </script>
 </body>
