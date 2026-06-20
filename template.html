@@ -142,7 +142,7 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
   function addNote(anchor) {
     ensureIdentity();
     var id = 'n' + (++seq);
-    var note = { id: id, author: me, color: '#6ea0ff', created: new Date().toISOString(),
+    var note = { id: id, author: me, color: colorFor(me), created: new Date().toISOString(),
       anchor: anchor, thread: [{ author: me, ts: new Date().toISOString(), body: '' }], resolved: false };
     state.notes.push(note);
     paintHighlights(); renderRail(); markDirty();
@@ -168,6 +168,15 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
     });
   }
 
+  // Deterministic author -> hue so each reviewer's cards are visually distinct
+  // without any manual colour picking. Derived at render time, so notes carried
+  // in from other reviewers colour by their author regardless of stored value.
+  function colorFor(author) {
+    var h = 0, s = String(author || '');
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    return 'hsl(' + h + ', 65%, 60%)';
+  }
+
   // --- threaded rail ---
   var hideResolved = false;
   function renderRail() {
@@ -175,15 +184,18 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
     state.notes.forEach(function (n) {
       if (n.resolved && hideResolved) return;
       var card = document.createElement('div'); card.className = 'mn-card'; card.dataset.note = n.id;
-      card.style.borderLeftColor = n.color || '#6ea0ff';
+      card.style.borderLeftColor = colorFor(n.author);
       if (n.resolved) card.style.opacity = '.55';
 
       var head = document.createElement('div'); head.className = 'who';
       head.textContent = n.author + (n._located < 0 ? ' · unanchored' : '') + (n.resolved ? ' · resolved' : '');
       card.appendChild(head);
 
-      n.thread.forEach(function (entry, i) {
-        if (i === 0) {
+      // Editable iff the entry is mine; everyone else's entries render as static
+      // attributed lines. This makes my own note body and my own replies typeable
+      // while keeping other reviewers' words read-only (spec: edit own note).
+      n.thread.forEach(function (entry) {
+        if (entry.author === me) {
           var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.value = entry.body; ta.rows = 3; ta.style.width = '100%';
           ta.addEventListener('input', function () { entry.body = ta.value; markDirty(); });
           card.appendChild(ta);
@@ -200,6 +212,8 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
         ensureIdentity();
         n.thread.push({ author: me, ts: new Date().toISOString(), body: '' });
         renderRail(); markDirty();
+        var tas = rail.querySelectorAll('.mn-card[data-note="' + n.id + '"] textarea');
+        if (tas.length) tas[tas.length - 1].focus();
       });
       var resolve = document.createElement('button'); resolve.textContent = n.resolved ? 'unresolve' : '✓ resolve';
       resolve.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
