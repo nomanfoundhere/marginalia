@@ -36,6 +36,13 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
 <script>
 (function () {
   'use strict';
+  // Capture the pristine page HTML before any DOM mutation. Save reconstructs
+  // the file from this, swapping only the notes block — never from the live,
+  // mutated DOM (which would double-render on reopen).
+  var PRISTINE = '<!doctype html>\n' + document.documentElement.outerHTML;
+  var DOC_NAME = document.title.replace('Margin Notes — ', '') || 'doc';
+  var LS_KEY = 'mn-notes:' + DOC_NAME;
+
   var doc = document.getElementById('margin-doc');
   var rail = document.getElementById('margin-rail');
 
@@ -48,6 +55,18 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
   var notesRaw = document.getElementById('margin-notes').textContent.trim();
   var state = notesRaw ? JSON.parse(b64decode(notesRaw)) : { schemaVersion: 1, notes: [] };
   if (!state.notes) state.notes = [];
+
+  // Hydrate from the localStorage autosave only when it is strictly newer than
+  // the notes baked into this file. A bare "cache always wins" would let a
+  // reviewer's stale autosave clobber an author-regenerated ledger (silent
+  // cross-round data loss); comparing savedAt keeps regeneration authoritative
+  // while still recovering unsaved local work after a crash or closed tab.
+  function savedAtMs(o) { var t = o && o.savedAt ? Date.parse(o.savedAt) : 0; return isNaN(t) ? 0 : t; }
+  try {
+    var cached = localStorage.getItem(LS_KEY);
+    if (cached) { var c = JSON.parse(cached); if (c && c.notes && savedAtMs(c) > savedAtMs(state)) state = c; }
+  } catch (e) {}
+
   var seq = state.notes.reduce(function (m, n) {
     var k = parseInt(String(n.id).replace(/\D/g, ''), 10); return isNaN(k) ? m : Math.max(m, k);
   }, 0);
@@ -227,6 +246,52 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
     var card = rail.querySelector('.mn-card[data-note="' + mk.dataset.note + '"]');
     if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
+
+  // --- save subsystem ---
+  function b64encode(str) {
+    return btoa(String.fromCharCode.apply(null, new TextEncoder().encode(str)));
+  }
+  function serialize() { return b64encode(JSON.stringify(state)); }
+
+  // savedAt stamps every persisted copy so the next load's hydrate can tell
+  // which is newer (see savedAtMs above).
+  function autosave() {
+    try { state.savedAt = new Date().toISOString(); localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+  }
+  document.addEventListener('mn-dirty', autosave);
+
+  var header = document.getElementById('margin-header');
+  var fileHandle = null;
+  var saveBtn = document.createElement('button'); saveBtn.textContent = 'Save';
+  header.insertBefore(saveBtn, header.querySelector('label'));
+  function refreshSaveLabel() { saveBtn.textContent = window.MN.isDirty() ? '● Save' : 'Saved'; }
+  document.addEventListener('mn-dirty', refreshSaveLabel);
+
+  async function save() {
+    state.savedAt = new Date().toISOString();
+    var output = MarginCore.reconstructView(PRISTINE, serialize());
+    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+    if (window.showSaveFilePicker) {
+      try {
+        if (!fileHandle) fileHandle = await showSaveFilePicker({ suggestedName: DOC_NAME.replace(/\.md$/, '') + '-view.html' });
+        var w = await fileHandle.createWritable(); await w.write(output); await w.close();
+        window.MN.setClean(); refreshSaveLabel(); return;
+      } catch (e) { if (e && e.name === 'AbortError') return; /* else fall through to download */ }
+    }
+    var blob = new Blob([output], { type: 'text/html' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = DOC_NAME.replace(/\.md$/, '') + '-view.html'; a.click();
+    URL.revokeObjectURL(a.href); window.MN.setClean(); refreshSaveLabel();
+  }
+  saveBtn.addEventListener('click', save);
+
+  window.addEventListener('keydown', function (e) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
+  });
+  window.addEventListener('beforeunload', function (e) {
+    if (window.MN.isDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
+  refreshSaveLabel();
 })();
 </script>
 </body>
