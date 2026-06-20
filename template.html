@@ -3,7 +3,25 @@
 <head>
 <meta charset="utf-8">
 <title>Margin Notes — <!--MARGIN_DOC_NAME--></title>
-<style>/* UI styles added in Task 5 */</style>
+<style>
+:root { --rail: 340px; }
+* { box-sizing: border-box; }
+body { margin: 0; font: 16px/1.6 -apple-system, system-ui, sans-serif; color: #1a1a1a; }
+#margin-header { position: sticky; top: 0; z-index: 5; display: flex; gap: 1rem;
+  align-items: center; padding: .6rem 1rem; background: #111; color: #eee; }
+#margin-header .grow { flex: 1; }
+#margin-header button, #margin-header select { font: inherit; padding: .3rem .7rem; }
+.layout { display: grid; grid-template-columns: minmax(0,1fr) var(--rail); }
+#margin-doc { padding: 2rem clamp(1rem, 4vw, 4rem); max-width: 70ch; }
+#margin-rail { padding: 1rem; border-left: 1px solid #ddd; }
+mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
+.mn-card { border: 1px solid #ddd; border-left: 4px solid #6ea0ff; border-radius: 6px;
+  padding: .6rem .7rem; margin-bottom: .8rem; background: #fafafa; }
+.mn-card .who { font-weight: 600; font-size: .85rem; }
+.mn-add { position: absolute; transform: translateY(-120%); z-index: 10;
+  font: inherit; padding: .25rem .6rem; cursor: pointer; }
+[hidden] { display: none !important; }
+</style>
 </head>
 <body>
 <header id="margin-header"></header>
@@ -15,6 +33,147 @@
 
 <script>/*MARGIN_MARKED*/</script>
 <script>/*MARGIN_CORE*/</script>
-<script>/* viewer boot added in Task 5 */</script>
+<script>
+(function () {
+  'use strict';
+  var doc = document.getElementById('margin-doc');
+  var rail = document.getElementById('margin-rail');
+
+  function b64decode(b64) {
+    return new TextDecoder().decode(Uint8Array.from(atob(b64), function (c) { return c.charCodeAt(0); }));
+  }
+
+  // --- state ---
+  var sourceMd = b64decode(document.getElementById('margin-source').textContent.trim());
+  var notesRaw = document.getElementById('margin-notes').textContent.trim();
+  var state = notesRaw ? JSON.parse(b64decode(notesRaw)) : { schemaVersion: 1, notes: [] };
+  if (!state.notes) state.notes = [];
+  var seq = state.notes.reduce(function (m, n) {
+    var k = parseInt(String(n.id).replace(/\D/g, ''), 10); return isNaN(k) ? m : Math.max(m, k);
+  }, 0);
+
+  // identity
+  var me = localStorage.getItem('mn-reviewer') || '';
+  function ensureIdentity() {
+    if (!me) { me = (prompt('Your name for this review?') || 'Reviewer').trim(); localStorage.setItem('mn-reviewer', me); }
+    return me;
+  }
+
+  // --- render markdown ---
+  var wrap = document.createElement('div'); wrap.className = 'layout';
+  doc.parentNode.insertBefore(wrap, doc);
+  wrap.appendChild(doc); wrap.appendChild(rail);
+  doc.innerHTML = globalThis.marked.parse(sourceMd);
+
+  // --- flat-text index <-> DOM range over #margin-doc ---
+  function textNodes() {
+    var w = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT, null);
+    var arr = [], n; while ((n = w.nextNode())) arr.push(n); return arr;
+  }
+  function flatText() { return textNodes().map(function (t) { return t.nodeValue; }).join(''); }
+  function rangeFromFlat(start, length) {
+    var nodes = textNodes(), acc = 0, range = document.createRange(), set = false;
+    for (var i = 0; i < nodes.length; i++) {
+      var len = nodes[i].nodeValue.length;
+      if (!set && start < acc + len) { range.setStart(nodes[i], start - acc); set = true; }
+      if (set && start + length <= acc + len) { range.setEnd(nodes[i], start + length - acc); return range; }
+      acc += len;
+    }
+    return null;
+  }
+  function flatFromSelection(sel) {
+    var nodes = textNodes(), acc = 0, startFlat = -1;
+    var r = sel.getRangeAt(0);
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i] === r.startContainer) startFlat = acc + r.startOffset;
+      acc += nodes[i].nodeValue.length;
+    }
+    return { start: startFlat, quote: sel.toString() };
+  }
+
+  // --- add-note affordance on selection ---
+  var addBtn = document.createElement('button');
+  addBtn.className = 'mn-add'; addBtn.textContent = '+ note'; addBtn.hidden = true;
+  document.body.appendChild(addBtn);
+
+  document.addEventListener('selectionchange', function () {
+    var sel = document.getSelection();
+    if (!sel || sel.isCollapsed || !doc.contains(sel.anchorNode)) { addBtn.hidden = true; return; }
+    var rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (!rect.width) { addBtn.hidden = true; return; }
+    addBtn.style.left = (window.scrollX + rect.left) + 'px';
+    addBtn.style.top = (window.scrollY + rect.top) + 'px';
+    addBtn.hidden = false;
+  });
+
+  addBtn.addEventListener('mousedown', function (e) {
+    e.preventDefault();
+    var sel = document.getSelection();
+    var flat = flatFromSelection(sel);
+    var text = flatText();
+    var anchor = {
+      quote: flat.quote,
+      prefix: text.slice(Math.max(0, flat.start - 30), flat.start),
+      suffix: text.slice(flat.start + flat.quote.length, flat.start + flat.quote.length + 30)
+    };
+    addNote(anchor);
+    addBtn.hidden = true; sel.removeAllRanges();
+  });
+
+  function addNote(anchor) {
+    ensureIdentity();
+    var id = 'n' + (++seq);
+    var note = { id: id, author: me, color: '#6ea0ff', created: new Date().toISOString(),
+      anchor: anchor, thread: [{ author: me, ts: new Date().toISOString(), body: '' }], resolved: false };
+    state.notes.push(note);
+    paintHighlights(); renderRail(); markDirty();
+    var ta = rail.querySelector('[data-edit="' + id + '"]'); if (ta) ta.focus();
+  }
+
+  // --- repaint highlights from anchors (Task 6 adds card interaction) ---
+  function paintHighlights() {
+    doc.querySelectorAll('mark.mn-hl').forEach(function (m) {
+      var parent = m.parentNode; while (m.firstChild) parent.insertBefore(m.firstChild, m); parent.removeChild(m);
+    });
+    doc.normalize();
+    var text = flatText();
+    state.notes.forEach(function (n) {
+      if (n.resolved) return;
+      var idx = globalThis.MarginCore.locateAnchor(text, n.anchor);
+      n._located = idx;
+      if (idx < 0) return;
+      var range = rangeFromFlat(idx, n.anchor.quote.length);
+      if (!range) return;
+      var mk = document.createElement('mark'); mk.className = 'mn-hl'; mk.dataset.note = n.id;
+      try { range.surroundContents(mk); } catch (e) { /* spans element boundary: skip paint, note still listed */ }
+    });
+  }
+
+  // --- minimal rail (expanded in Task 6) ---
+  function renderRail() {
+    rail.innerHTML = '';
+    state.notes.forEach(function (n) {
+      var card = document.createElement('div'); card.className = 'mn-card'; card.dataset.note = n.id;
+      var first = n.thread[0] || { body: '' };
+      card.innerHTML = '<div class="who"></div>';
+      card.querySelector('.who').textContent = n.author + (n._located < 0 ? ' · unanchored' : '');
+      var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.value = first.body; ta.rows = 3; ta.style.width = '100%';
+      ta.addEventListener('input', function () { first.body = ta.value; markDirty(); });
+      card.appendChild(ta);
+      rail.appendChild(card);
+    });
+  }
+
+  // --- dirty flag (save wired in Task 7) ---
+  var dirty = false;
+  function markDirty() { dirty = true; document.dispatchEvent(new CustomEvent('mn-dirty')); }
+
+  // expose for Tasks 6–7
+  window.MN = { state: state, paintHighlights: paintHighlights, renderRail: renderRail,
+    isDirty: function () { return dirty; }, setClean: function () { dirty = false; }, me: function () { return me; } };
+
+  paintHighlights(); renderRail();
+})();
+</script>
 </body>
 </html>
