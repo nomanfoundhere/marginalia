@@ -3,30 +3,199 @@
 <head>
 <meta charset="utf-8">
 <title>Margin Notes — <!--MARGIN_DOC_NAME--></title>
+<script>
+// Theme init — runs before any paint so there is no light/dark flash, and on
+// EVERY load so the data-theme baked into a shared file is always re-derived
+// from this viewer's own storage/OS rather than inherited from the author.
+(function () {
+  try {
+    var t = localStorage.getItem('mn-theme');
+    if (t !== 'dark' && t !== 'light') {
+      t = (window.matchMedia && matchMedia('(prefers-color-scheme: dark)').matches) ? 'dark' : 'light';
+    }
+    document.documentElement.setAttribute('data-theme', t);
+  } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+})();
+</script>
 <style>
-:root { --rail: 340px; }
 * { box-sizing: border-box; }
-body { margin: 0; font: 16px/1.6 -apple-system, system-ui, sans-serif; color: #1a1a1a; }
-#margin-header { position: sticky; top: 0; z-index: 5; display: flex; gap: 1rem;
-  align-items: center; padding: .6rem 1rem; background: #111; color: #eee; }
-#margin-header .grow { flex: 1; }
-#margin-header button, #margin-header select { font: inherit; padding: .3rem .7rem; }
-.layout { display: grid; grid-template-columns: minmax(0,1fr) var(--rail); }
-#margin-doc { padding: 2rem clamp(1rem, 4vw, 4rem); max-width: 70ch; }
-#margin-rail { padding: 1rem; border-left: 1px solid #ddd; }
-mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
-.mn-card { border: 1px solid #ddd; border-left: 4px solid #6ea0ff; border-radius: 6px;
-  padding: .6rem .7rem; margin-bottom: .8rem; background: #fafafa; }
-.mn-card .who { font-weight: 600; font-size: .85rem; }
-.mn-add { position: absolute; transform: translateY(-120%); z-index: 10;
-  font: inherit; padding: .25rem .6rem; cursor: pointer; }
+
+html[data-theme="light"] {
+  --desk: #f3f4f6; --panel: #ffffff;
+  --ink: #1a1d24; --ink-2: #4b5563; --ink-3: #6b7280;
+  --line: #e5e7eb; --line-2: #cdd2da;
+  --field: #f7f8fa; --accent: #2563eb;
+  --shadow:      5px 5px 0 rgba(17, 20, 26, .10);
+  --shadow-card: 4px 4px 0 rgba(17, 20, 26, .08);
+  --shadow-btn:  2px 2px 0 rgba(17, 20, 26, .12);
+}
+html[data-theme="dark"] {
+  --desk: #1a1d24; --panel: #23272f;
+  --ink: #e8eaed; --ink-2: #b6bcc6; --ink-3: #8b919c;
+  --line: #2f343d; --line-2: #3b414c;
+  --field: #1b1e25; --accent: #6ea0ff;
+  --shadow:      6px 6px 0 rgba(0, 0, 0, .46);
+  --shadow-card: 4px 4px 0 rgba(0, 0, 0, .42);
+  --shadow-btn:  2px 2px 0 rgba(0, 0, 0, .46);
+}
+
+:root { --rail: 320px; }
+
+body {
+  margin: 0; background: var(--desk); color: var(--ink);
+  font: 16px/1.6 -apple-system, "Segoe UI", system-ui, sans-serif;
+  transition: background-color .2s ease, color .2s ease;
+}
+
+/* --- header --- */
+#margin-header {
+  position: sticky; top: 0; z-index: 20;
+  display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+  padding: .55rem 1rem; background: var(--panel);
+  border-bottom: 1px solid var(--line);
+}
+#margin-header .grow { flex: 1 1 8rem; min-width: 0; }
+.mn-title { font-weight: 600; color: var(--ink-2);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.mn-btn, .mn-save {
+  font: inherit; font-size: .85rem; padding: .35rem .7rem;
+  border: 1px solid var(--line-2); border-radius: 8px;
+  background: var(--field); color: var(--ink); cursor: pointer;
+  box-shadow: var(--shadow-btn); transition: transform .08s ease;
+}
+.mn-btn:active, .mn-save:active { transform: translate(2px, 2px); box-shadow: none; }
+.mn-save[data-state="dirty"] { color: var(--accent); font-weight: 600; }
+.mn-save[data-state="saving"] { color: var(--ink-3); }
+
+.mn-identity { display: inline-flex; }
+.mn-chip {
+  display: inline-flex; align-items: center; gap: .45rem;
+  font: inherit; font-size: .85rem; padding: .3rem .6rem;
+  border: 1px solid var(--line-2); border-radius: 999px;
+  background: var(--field); color: var(--ink); cursor: pointer;
+}
+.mn-dot { width: 12px; height: 12px; border-radius: 50%; flex: none;
+  background: var(--ink-3); box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+.mn-name-input {
+  font: inherit; font-size: .88rem; padding: .3rem .55rem;
+  border: 1px solid var(--accent); border-radius: 999px;
+  background: var(--field); color: var(--ink); width: 11rem; max-width: 50vw;
+}
+.mn-hr { display: inline-flex; align-items: center; gap: .35rem;
+  font-size: .82rem; color: var(--ink-2); cursor: pointer; }
+
+/* --- layout: centred reading column + anchored rail --- */
+.layout {
+  display: grid; grid-template-columns: minmax(0, 72ch) var(--rail);
+  gap: 2.2rem; justify-content: center; align-items: start;
+  padding: 2rem 1.5rem 5rem;
+}
+#margin-doc {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+  box-shadow: var(--shadow); padding: 2.4rem clamp(1.2rem, 3vw, 2.6rem);
+  min-width: 0;
+}
+#margin-doc h1, #margin-doc h2, #margin-doc h3 { line-height: 1.25; }
+#margin-doc pre { background: var(--field); border: 1px solid var(--line);
+  border-radius: 8px; padding: .8rem; overflow: auto; }
+#margin-doc code { font-family: ui-monospace, "SFMono-Regular", monospace; font-size: .92em; }
+#margin-doc :not(pre) > code { background: var(--field); border: 1px solid var(--line);
+  border-radius: 4px; padding: .05em .3em; }
+#margin-doc a { color: var(--accent); }
+#margin-doc blockquote { border-left: 3px solid var(--line-2); margin-left: 0;
+  padding-left: 1rem; color: var(--ink-2); }
+#margin-doc table { border-collapse: collapse; }
+#margin-doc th, #margin-doc td { border: 1px solid var(--line); padding: .3rem .6rem; }
+
+mark.mn-hl {
+  color: inherit; cursor: pointer; border-radius: 2px; padding-bottom: 1px;
+  text-decoration-line: underline; text-decoration-thickness: 2px;
+  text-underline-offset: 2px;
+}
+
+#margin-rail { position: relative; min-height: 1px; }
+#margin-rail.anchored .mn-card { position: absolute; left: 0; right: 0; }
+#margin-rail:not(.anchored) .mn-card { margin-bottom: 1rem; }
+
+.mn-empty { color: var(--ink-3); font-size: .9rem; padding: 1rem .2rem; }
+
+/* --- note card --- */
+.mn-card {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: var(--shadow-card); padding: .7rem .8rem;
+  transition: top .12s ease;
+}
+.mn-card.resolved { opacity: .6; }
+.mn-card.unanchored { border-style: dashed; }
+
+.mn-card-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .55rem; }
+.mn-id { font: .72rem/1 ui-monospace, monospace; color: var(--ink-3);
+  background: var(--field); border: 1px solid var(--line); border-radius: 6px;
+  padding: .15rem .4rem; }
+.mn-badge { font: .68rem/1 ui-monospace, monospace; color: #fff;
+  background: var(--ink-3); border-radius: 6px; padding: .16rem .4rem; }
+.mn-icon { background: none; border: 1px solid transparent; border-radius: 6px;
+  cursor: pointer; color: var(--ink-3); padding: .2rem .4rem; font-size: .9rem;
+  line-height: 1; }
+.mn-icon:hover { color: var(--ink); background: var(--field); border-color: var(--line); }
+.mn-quote { font-size: .85rem; color: var(--ink-2);
+  border-left: 3px solid var(--line-2); padding-left: .5rem; margin: 0 0 .6rem; }
+
+/* conversation: continuous connector line behind the avatars */
+.mn-conv { position: relative; display: flex; flex-direction: column; gap: .7rem; }
+.mn-conv::before { content: ""; position: absolute; left: 14px; top: 14px; bottom: 14px;
+  width: 2px; background: var(--line-2); transform: translateX(-50%); z-index: 0; }
+.mn-msg, .mn-composer { display: grid; grid-template-columns: 28px 1fr; gap: .55rem;
+  align-items: start; position: relative; z-index: 1; }
+.mn-avatar { width: 28px; height: 28px; border-radius: 50%; flex: none;
+  display: grid; place-items: center; color: #fff;
+  font: 600 .75rem/1 ui-monospace, monospace;
+  box-shadow: 0 0 0 2px var(--panel); }
+.mn-meta { font: .72rem/1.3 ui-monospace, monospace; color: var(--ink-3); margin-bottom: .12rem; }
+.mn-author { color: var(--ink-2); font-weight: 600; }
+.mn-text { white-space: pre-wrap; word-break: break-word; }
+.mn-msg textarea, .mn-reply {
+  width: 100%; font: inherit; font-size: .92rem; color: var(--ink);
+  background: var(--field); border: 1px solid var(--line-2); border-radius: 8px;
+  padding: .4rem .5rem;
+}
+.mn-msg textarea { resize: vertical; }
+.mn-reply { resize: none; }
+
+/* selection affordance */
+.mn-add { position: absolute; z-index: 30; transform: translateY(-120%);
+  font: inherit; font-size: .82rem; padding: .3rem .65rem; cursor: pointer;
+  border: 1px solid var(--line-2); border-radius: 8px;
+  background: var(--accent); color: #fff; box-shadow: var(--shadow-btn); }
+
+/* first-save explainer — an inline panel, never a browser modal */
+.mn-explainer { position: fixed; top: 60px; right: 1.5rem; z-index: 50;
+  max-width: 340px; background: var(--panel); border: 1px solid var(--line-2);
+  border-radius: 12px; box-shadow: var(--shadow); padding: 1rem 1.1rem;
+  font-size: .9rem; color: var(--ink-2); }
+.mn-explainer h3 { margin: 0 0 .4rem; font-size: .95rem; color: var(--ink); }
+.mn-explainer code { font-family: ui-monospace, monospace; color: var(--ink);
+  background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: .05em .3em; }
+.mn-explainer .row { display: flex; gap: .5rem; margin-top: .8rem; }
+
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 [hidden] { display: none !important; }
+
+@media (max-width: 880px) {
+  .layout { grid-template-columns: 1fr; }
+  #margin-rail { border-top: 1px solid var(--line); padding-top: 1rem; }
+  .mn-explainer { left: 1rem; right: 1rem; max-width: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
 </style>
 </head>
 <body>
 <header id="margin-header"></header>
 <main id="margin-doc"></main>
-<aside id="margin-rail"></aside>
+<aside id="margin-rail" aria-label="Margin notes"></aside>
 
 <script id="margin-source" type="text/plain"></script>
 <script id="margin-notes" type="text/plain"></script>
@@ -38,16 +207,24 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
   'use strict';
   // Capture the pristine page HTML before any DOM mutation. Save reconstructs
   // the file from this, swapping only the notes block — never from the live,
-  // mutated DOM (which would double-render on reopen).
+  // mutated DOM (which would double-render on reopen). The only "live" value it
+  // carries is data-theme on <html>, which the head init script re-derives on
+  // every reopen, so it is never effectively baked into the shared ledger.
   var PRISTINE = '<!doctype html>\n' + document.documentElement.outerHTML;
   var DOC_NAME = document.title.replace('Margin Notes — ', '') || 'doc';
+  var SAVE_NAME = DOC_NAME.replace(/\.md$/, '') + '-view.html';
   var LS_KEY = 'mn-notes:' + DOC_NAME;
+  var HANDLE_KEY = 'handle:' + DOC_NAME;
 
   var doc = document.getElementById('margin-doc');
   var rail = document.getElementById('margin-rail');
+  var header = document.getElementById('margin-header');
 
   function b64decode(b64) {
     return new TextDecoder().decode(Uint8Array.from(atob(b64), function (c) { return c.charCodeAt(0); }));
+  }
+  function b64encode(str) {
+    return btoa(String.fromCharCode.apply(null, new TextEncoder().encode(str)));
   }
 
   // --- state ---
@@ -71,11 +248,78 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
     var k = parseInt(String(n.id).replace(/\D/g, ''), 10); return isNaN(k) ? m : Math.max(m, k);
   }, 0);
 
-  // identity
-  var me = localStorage.getItem('mn-reviewer') || '';
-  function ensureIdentity() {
-    if (!me) { me = (prompt('Your name for this review?') || 'Reviewer').trim(); localStorage.setItem('mn-reviewer', me); }
-    return me;
+  // Deterministic author -> hue so each reviewer's cards, avatars and highlight
+  // share one colour without any manual picking. Derived at render time, so
+  // notes carried in from other reviewers colour by their author.
+  function hueFor(author) {
+    var h = 0, s = String(author || '');
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
+    return h;
+  }
+  function colorFor(author) { return 'hsl(' + hueFor(author) + ', 62%, 55%)'; }
+  function tintFor(author) { return 'hsla(' + hueFor(author) + ', 62%, 55%, .16)'; }
+  function monogram(author) { var s = String(author || '?').trim(); return (s.charAt(0) || '?').toUpperCase(); }
+
+  function relTime(iso) {
+    var t = Date.parse(iso); if (isNaN(t)) return '';
+    var s = Math.floor((Date.now() - t) / 1000); if (s < 0) s = 0;
+    if (s < 45) return 'just now';
+    var m = Math.floor(s / 60); if (m < 60) return m + 'm ago';
+    var h = Math.floor(m / 60); if (h < 24) return h + 'h ago';
+    var d = Math.floor(h / 24); if (d < 7) return d + 'd ago';
+    return new Date(t).toLocaleDateString();
+  }
+
+  // --- identity (no native prompt) ---
+  var me = '';
+  try { me = localStorage.getItem('mn-reviewer') || ''; } catch (e) {}
+  var pendingAction = null;     // deferred create/reply, run once a name exists
+  var idWrap, themeBtn, saveBtn;
+
+  // Any action that authors content routes through here: if no name is set yet,
+  // the action is stored and the identity input is focused instead of a dialog.
+  function requireIdentity(cb) {
+    if (me) { cb(); return; }
+    pendingAction = cb;
+    openIdentityEditor();
+  }
+  function setIdentity(name) {
+    name = (name || '').trim();
+    if (!name) return false;
+    me = name;
+    try { localStorage.setItem('mn-reviewer', me); } catch (e) {}
+    renderIdentity();
+    paintHighlights(); renderRail();           // my entries become editable
+    if (pendingAction) { var f = pendingAction; pendingAction = null; f(); }
+    return true;
+  }
+  function renderIdentity() {
+    idWrap.innerHTML = '';
+    var chip = document.createElement('button');
+    chip.type = 'button'; chip.className = 'mn-chip';
+    chip.setAttribute('aria-label', me ? 'Change your reviewer name' : 'Set your reviewer name');
+    var dot = document.createElement('span'); dot.className = 'mn-dot';
+    if (me) dot.style.background = colorFor(me);
+    var label = document.createElement('span'); label.textContent = me || 'Set your name';
+    chip.appendChild(dot); chip.appendChild(label);
+    chip.addEventListener('click', openIdentityEditor);
+    idWrap.appendChild(chip);
+  }
+  function openIdentityEditor() {
+    idWrap.innerHTML = '';
+    var input = document.createElement('input');
+    input.type = 'text'; input.className = 'mn-name-input';
+    input.value = me; input.placeholder = 'Your name';
+    input.setAttribute('aria-label', 'Your reviewer name');
+    var done = false;
+    function commit() { if (done) return; done = true; if (!setIdentity(input.value)) renderIdentity(); }
+    input.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      else if (e.key === 'Escape') { done = true; renderIdentity(); }
+    });
+    input.addEventListener('blur', commit);
+    idWrap.appendChild(input);
+    input.focus(); input.select();
   }
 
   // --- render markdown ---
@@ -112,7 +356,9 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
 
   // --- add-note affordance on selection ---
   var addBtn = document.createElement('button');
-  addBtn.className = 'mn-add'; addBtn.textContent = '+ note'; addBtn.hidden = true;
+  addBtn.className = 'mn-add'; addBtn.textContent = '+ note';
+  addBtn.setAttribute('aria-label', 'Leave a note on the selected text');
+  addBtn.hidden = true;
   document.body.appendChild(addBtn);
 
   document.addEventListener('selectionchange', function () {
@@ -135,12 +381,11 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
       prefix: text.slice(Math.max(0, flat.start - 30), flat.start),
       suffix: text.slice(flat.start + flat.quote.length, flat.start + flat.quote.length + 30)
     };
-    addNote(anchor);
     addBtn.hidden = true; sel.removeAllRanges();
+    requireIdentity(function () { createNote(anchor); });
   });
 
-  function addNote(anchor) {
-    ensureIdentity();
+  function createNote(anchor) {
     var id = 'n' + (++seq);
     var note = { id: id, author: me, color: colorFor(me), created: new Date().toISOString(),
       anchor: anchor, thread: [{ author: me, ts: new Date().toISOString(), body: '' }], resolved: false };
@@ -149,7 +394,7 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
     var ta = rail.querySelector('[data-edit="' + id + '"]'); if (ta) ta.focus();
   }
 
-  // --- repaint highlights from anchors (Task 6 adds card interaction) ---
+  // --- repaint highlights from anchors ---
   function paintHighlights() {
     doc.querySelectorAll('mark.mn-hl').forEach(function (m) {
       var parent = m.parentNode; while (m.firstChild) parent.insertBefore(m.firstChild, m); parent.removeChild(m);
@@ -157,6 +402,7 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
     doc.normalize();
     var text = flatText();
     state.notes.forEach(function (n) {
+      n._located = -1;
       if (n.resolved) return;
       var idx = globalThis.MarginCore.locateAnchor(text, n.anchor);
       n._located = idx;
@@ -164,95 +410,188 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
       var range = rangeFromFlat(idx, n.anchor.quote.length);
       if (!range) return;
       var mk = document.createElement('mark'); mk.className = 'mn-hl'; mk.dataset.note = n.id;
+      mk.style.backgroundColor = tintFor(n.author);
+      mk.style.textDecorationColor = colorFor(n.author);
       try { range.surroundContents(mk); } catch (e) { /* spans element boundary: skip paint, note still listed */ }
     });
   }
 
-  // Deterministic author -> hue so each reviewer's cards are visually distinct
-  // without any manual colour picking. Derived at render time, so notes carried
-  // in from other reviewers colour by their author regardless of stored value.
-  function colorFor(author) {
-    var h = 0, s = String(author || '');
-    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360;
-    return 'hsl(' + h + ', 65%, 60%)';
-  }
-
   // --- threaded rail ---
   var hideResolved = false;
+
+  function messageRow(n, entry) {
+    var row = document.createElement('div'); row.className = 'mn-msg';
+    var av = document.createElement('span'); av.className = 'mn-avatar';
+    av.style.background = colorFor(entry.author); av.textContent = monogram(entry.author);
+    var body = document.createElement('div'); body.className = 'mn-msg-body';
+    var meta = document.createElement('div'); meta.className = 'mn-meta';
+    var who = document.createElement('span'); who.className = 'mn-author'; who.textContent = entry.author;
+    meta.appendChild(who);
+    if (entry.ts) meta.appendChild(document.createTextNode(' · ' + relTime(entry.ts)));
+    body.appendChild(meta);
+    // Editable iff the entry is mine; everyone else's renders as static text.
+    if (entry.author === me) {
+      var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.rows = 2;
+      ta.value = entry.body; ta.placeholder = 'Your note…';
+      ta.setAttribute('aria-label', 'Edit your note');
+      ta.addEventListener('input', function () { entry.body = ta.value; markDirty(); });
+      body.appendChild(ta);
+    } else {
+      var p = document.createElement('div'); p.className = 'mn-text'; p.textContent = entry.body;
+      body.appendChild(p);
+    }
+    row.appendChild(av); row.appendChild(body);
+    return row;
+  }
+
   function renderRail() {
     rail.innerHTML = '';
-    state.notes.forEach(function (n) {
-      if (n.resolved && hideResolved) return;
-      var card = document.createElement('div'); card.className = 'mn-card'; card.dataset.note = n.id;
-      card.style.borderLeftColor = colorFor(n.author);
-      if (n.resolved) card.style.opacity = '.55';
+    var shown = state.notes.filter(function (n) { return !(n.resolved && hideResolved); });
+    if (!shown.length) {
+      var empty = document.createElement('p'); empty.className = 'mn-empty';
+      empty.textContent = 'Select text in the document to leave a note.';
+      rail.appendChild(empty); placeCards(); return;
+    }
+    shown.forEach(function (n) {
+      var card = document.createElement('article'); card.className = 'mn-card'; card.dataset.note = n.id;
+      card.setAttribute('aria-label', 'Note ' + n.id);
+      var unanchored = !n.resolved && n._located < 0;
+      if (n.resolved) card.classList.add('resolved');
+      if (unanchored) card.classList.add('unanchored');
 
-      var head = document.createElement('div'); head.className = 'who';
-      head.textContent = n.author + (n._located < 0 ? ' · unanchored' : '') + (n.resolved ? ' · resolved' : '');
+      var head = document.createElement('div'); head.className = 'mn-card-head';
+      var id = document.createElement('span'); id.className = 'mn-id'; id.textContent = n.id;
+      head.appendChild(id);
+      if (unanchored) { var badge = document.createElement('span'); badge.className = 'mn-badge'; badge.textContent = 'unanchored'; head.appendChild(badge); }
+      var grow = document.createElement('span'); grow.className = 'grow'; grow.style.flex = '1'; head.appendChild(grow);
+      var resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-icon';
+      resolveBtn.textContent = n.resolved ? '↺' : '✓';
+      resolveBtn.setAttribute('aria-label', n.resolved ? 'Unresolve note' : 'Resolve note');
+      resolveBtn.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
+      var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = '🗑';
+      delBtn.setAttribute('aria-label', 'Delete note');
+      delBtn.addEventListener('click', function () {
+        state.notes = state.notes.filter(function (x) { return x !== n; });
+        paintHighlights(); renderRail(); markDirty();
+      });
+      head.appendChild(resolveBtn); head.appendChild(delBtn);
       card.appendChild(head);
 
-      // Editable iff the entry is mine; everyone else's entries render as static
-      // attributed lines. This makes my own note body and my own replies typeable
-      // while keeping other reviewers' words read-only (spec: edit own note).
-      n.thread.forEach(function (entry) {
-        if (entry.author === me) {
-          var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.value = entry.body; ta.rows = 3; ta.style.width = '100%';
-          ta.addEventListener('input', function () { entry.body = ta.value; markDirty(); });
-          card.appendChild(ta);
-        } else {
-          var p = document.createElement('p'); p.style.margin = '.4rem 0';
-          p.innerHTML = '<strong></strong>: '; p.querySelector('strong').textContent = entry.author;
-          p.appendChild(document.createTextNode(entry.body)); card.appendChild(p);
-        }
-      });
+      if (unanchored && n.anchor && n.anchor.quote) {
+        var q = document.createElement('div'); q.className = 'mn-quote'; q.textContent = '“' + n.anchor.quote + '”';
+        card.appendChild(q);
+      }
 
-      var bar = document.createElement('div');
-      var reply = document.createElement('button'); reply.textContent = 'reply';
-      reply.addEventListener('click', function () {
-        ensureIdentity();
-        n.thread.push({ author: me, ts: new Date().toISOString(), body: '' });
-        renderRail(); markDirty();
-        var tas = rail.querySelectorAll('.mn-card[data-note="' + n.id + '"] textarea');
-        if (tas.length) tas[tas.length - 1].focus();
-      });
-      var resolve = document.createElement('button'); resolve.textContent = n.resolved ? 'unresolve' : '✓ resolve';
-      resolve.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
-      var del = document.createElement('button'); del.textContent = 'delete';
-      del.addEventListener('click', function () {
-        state.notes = state.notes.filter(function (x) { return x !== n; });
-        window.MN.state = state; paintHighlights(); renderRail(); markDirty();
-      });
-      bar.appendChild(reply); bar.appendChild(resolve); bar.appendChild(del);
-      card.appendChild(bar);
+      // Resolved cards collapse to just their header.
+      if (!n.resolved) {
+        var conv = document.createElement('div'); conv.className = 'mn-conv';
+        n.thread.forEach(function (entry) { conv.appendChild(messageRow(n, entry)); });
+
+        var composer = document.createElement('div'); composer.className = 'mn-composer';
+        var cav = document.createElement('span'); cav.className = 'mn-avatar';
+        cav.style.background = me ? colorFor(me) : 'var(--ink-3)'; cav.textContent = me ? monogram(me) : '+';
+        var reply = document.createElement('input'); reply.type = 'text'; reply.className = 'mn-reply';
+        reply.placeholder = 'Reply…'; reply.setAttribute('aria-label', 'Reply to note ' + n.id);
+        reply.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter') return;
+          e.preventDefault();
+          var text = reply.value.trim(); if (!text) return;
+          reply.value = '';
+          requireIdentity(function () {
+            n.thread.push({ author: me, ts: new Date().toISOString(), body: text });
+            renderRail(); markDirty();
+          });
+        });
+        composer.appendChild(cav); composer.appendChild(reply);
+        conv.appendChild(composer);
+        card.appendChild(conv);
+      }
 
       card.addEventListener('click', function (e) {
-        if (e.target.tagName === 'TEXTAREA' || e.target.tagName === 'BUTTON') return;
+        if (/^(TEXTAREA|BUTTON|INPUT)$/.test(e.target.tagName)) return;
         var hl = doc.querySelector('mark.mn-hl[data-note="' + n.id + '"]');
         if (hl) hl.scrollIntoView({ behavior: 'smooth', block: 'center' });
       });
       rail.appendChild(card);
     });
+    placeCards();
   }
 
-  // --- dirty flag (save wired in Task 7) ---
+  // Anchor-aligned placement: each card floats to its highlight's vertical
+  // offset, then greedily slides down so it never overlaps the card above.
+  // Unanchored / resolved cards have no highlight and pin to the top.
+  function placeCards() {
+    var anchored = !window.matchMedia('(max-width: 880px)').matches;
+    var cards = Array.prototype.slice.call(rail.querySelectorAll('.mn-card'));
+    if (!anchored) {
+      rail.classList.remove('anchored'); rail.style.height = '';
+      cards.forEach(function (c) { c.style.top = ''; });
+      return;
+    }
+    rail.classList.add('anchored');
+    var railTop = rail.getBoundingClientRect().top;
+    var items = cards.map(function (card) {
+      var hl = doc.querySelector('mark.mn-hl[data-note="' + card.dataset.note + '"]');
+      return { card: card, floating: !hl, target: hl ? (hl.getBoundingClientRect().top - railTop) : -1 };
+    });
+    items.sort(function (a, b) { return a.target - b.target; });   // floats (-1) first, then by offset
+    var y = 0, gap = 14;
+    items.forEach(function (it) {
+      var top = Math.max(it.floating ? 0 : it.target, y);
+      it.card.style.top = top + 'px';
+      y = top + it.card.offsetHeight + gap;
+    });
+    rail.style.height = Math.max(y, doc.offsetHeight) + 'px';
+  }
+
+  var relayoutPending = false;
+  window.addEventListener('resize', function () {
+    if (relayoutPending) return; relayoutPending = true;
+    requestAnimationFrame(function () { relayoutPending = false; placeCards(); });
+  });
+
+  // --- dirty flag ---
   var dirty = false;
   function markDirty() { dirty = true; document.dispatchEvent(new CustomEvent('mn-dirty')); }
 
-  // expose for Tasks 6–7
   window.MN = { state: state, paintHighlights: paintHighlights, renderRail: renderRail,
     isDirty: function () { return dirty; }, setClean: function () { dirty = false; }, me: function () { return me; } };
 
-  paintHighlights(); renderRail();
-
-  // --- header controls + highlight -> card scroll ---
-  var header = document.getElementById('margin-header');
-  header.innerHTML = '<span class="grow"></span>';
-  header.querySelector('.grow').textContent = document.title.replace('Margin Notes — ', '');
-  var hr = document.createElement('label'); hr.style.color = '#eee';
+  // --- build header ---
+  idWrap = document.createElement('div'); idWrap.className = 'mn-identity';
+  var title = document.createElement('span'); title.className = 'mn-title grow'; title.textContent = DOC_NAME;
+  saveBtn = document.createElement('button'); saveBtn.className = 'mn-save';
+  themeBtn = document.createElement('button'); themeBtn.className = 'mn-btn';
+  var hr = document.createElement('label'); hr.className = 'mn-hr';
   var cb = document.createElement('input'); cb.type = 'checkbox';
   cb.addEventListener('change', function () { hideResolved = cb.checked; renderRail(); });
-  hr.appendChild(cb); hr.appendChild(document.createTextNode(' hide resolved'));
+  hr.appendChild(cb); hr.appendChild(document.createTextNode('hide resolved'));
+
+  header.appendChild(idWrap);
+  header.appendChild(title);
+  header.appendChild(saveBtn);
+  header.appendChild(themeBtn);
   header.appendChild(hr);
+
+  renderIdentity();
+
+  // --- theme toggle ---
+  function currentTheme() { return document.documentElement.getAttribute('data-theme') || 'light'; }
+  function applyThemeBtn() {
+    var t = currentTheme();
+    themeBtn.textContent = t === 'dark' ? '☀ Light' : '☾ Dark';
+    themeBtn.setAttribute('aria-label', 'Switch to ' + (t === 'dark' ? 'light' : 'dark') + ' theme');
+  }
+  themeBtn.addEventListener('click', function () {
+    var next = currentTheme() === 'dark' ? 'light' : 'dark';
+    document.documentElement.setAttribute('data-theme', next);
+    try { localStorage.setItem('mn-theme', next); } catch (e) {}
+    applyThemeBtn();
+  });
+  applyThemeBtn();
+
+  // initial paint
+  paintHighlights(); renderRail();
 
   doc.addEventListener('click', function (e) {
     var mk = e.target.closest && e.target.closest('mark.mn-hl');
@@ -262,40 +601,112 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
   });
 
   // --- save subsystem ---
-  function b64encode(str) {
-    return btoa(String.fromCharCode.apply(null, new TextEncoder().encode(str)));
-  }
   function serialize() { return b64encode(JSON.stringify(state)); }
 
-  // savedAt stamps every persisted copy so the next load's hydrate can tell
-  // which is newer (see savedAtMs above).
   function autosave() {
     try { state.savedAt = new Date().toISOString(); localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
   }
   document.addEventListener('mn-dirty', autosave);
 
-  var header = document.getElementById('margin-header');
+  function setSaveState(s) {
+    saveBtn.dataset.state = s;
+    saveBtn.textContent = s === 'saving' ? 'Saving…' : (s === 'dirty' ? '● Save' : 'Saved');
+    saveBtn.setAttribute('aria-label', s === 'dirty' ? 'Save (unsaved changes)' : (s === 'saving' ? 'Saving' : 'Saved'));
+  }
+  document.addEventListener('mn-dirty', function () { if (saveBtn.dataset.state !== 'saving') setSaveState('dirty'); });
+
+  // --- IndexedDB handle persistence (self-degrading) ---
+  function idbOpen() {
+    return new Promise(function (res, rej) {
+      var r = indexedDB.open('mn-handles', 1);
+      r.onupgradeneeded = function () { r.result.createObjectStore('handles'); };
+      r.onsuccess = function () { res(r.result); };
+      r.onerror = function () { rej(r.error); };
+    });
+  }
+  function idbGet(key) {
+    return idbOpen().then(function (db) { return new Promise(function (res, rej) {
+      var q = db.transaction('handles', 'readonly').objectStore('handles').get(key);
+      q.onsuccess = function () { res(q.result); }; q.onerror = function () { rej(q.error); };
+    }); });
+  }
+  function idbSet(key, val) {
+    return idbOpen().then(function (db) { return new Promise(function (res, rej) {
+      var tx = db.transaction('handles', 'readwrite'); tx.objectStore('handles').put(val, key);
+      tx.oncomplete = function () { res(); }; tx.onerror = function () { rej(tx.error); };
+    }); });
+  }
+  function getStoredHandle() { return idbGet(HANDLE_KEY).catch(function () { return null; }); }
+  function storeHandle(h) { return idbSet(HANDLE_KEY, h).catch(function () {}); }
+  function verifyPermission(handle) {
+    var opts = { mode: 'readwrite' };
+    return Promise.resolve()
+      .then(function () { return handle.queryPermission ? handle.queryPermission(opts) : 'granted'; })
+      .then(function (p) { return p === 'granted' ? true : (handle.requestPermission ? handle.requestPermission(opts) : 'denied'); })
+      .then(function (p) { return p === true || p === 'granted'; })
+      .catch(function () { return false; });
+  }
+
+  // The first save names the exact file to choose, once. The Continue button is
+  // itself the user gesture that opens the OS picker (so activation survives).
+  var firstSaveExplained = false;
+  function showFirstSaveExplainer() {
+    return new Promise(function (resolve, reject) {
+      var panel = document.createElement('div'); panel.className = 'mn-explainer';
+      var h = document.createElement('h3'); h.textContent = 'Save this review once';
+      var p = document.createElement('p'); p.style.margin = '0';
+      p.appendChild(document.createTextNode('Your browser will ask which file to write. Choose '));
+      var codeEl = document.createElement('code'); codeEl.textContent = SAVE_NAME;
+      p.appendChild(codeEl);
+      p.appendChild(document.createTextNode(' — the file you are viewing — and confirm overwrite. After this once, saving is a single click.'));
+      var row = document.createElement('div'); row.className = 'row';
+      var ok = document.createElement('button'); ok.className = 'mn-save'; ok.textContent = 'Choose file & save';
+      var cancel = document.createElement('button'); cancel.className = 'mn-btn'; cancel.textContent = 'Not now';
+      function cleanup() { panel.remove(); }
+      ok.addEventListener('click', function () { cleanup(); resolve(); });
+      cancel.addEventListener('click', function () { cleanup(); reject({ name: 'AbortError' }); });
+      row.appendChild(ok); row.appendChild(cancel);
+      panel.appendChild(h); panel.appendChild(p); panel.appendChild(row);
+      document.body.appendChild(panel); ok.focus();
+    });
+  }
+
   var fileHandle = null;
-  var saveBtn = document.createElement('button'); saveBtn.textContent = 'Save';
-  header.insertBefore(saveBtn, header.querySelector('label'));
-  function refreshSaveLabel() { saveBtn.textContent = window.MN.isDirty() ? '● Save' : 'Saved'; }
-  document.addEventListener('mn-dirty', refreshSaveLabel);
+  function downloadFallback(output) {
+    var blob = new Blob([output], { type: 'text/html' });
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+    a.download = SAVE_NAME; a.click(); URL.revokeObjectURL(a.href);
+    window.MN.setClean(); setSaveState('saved');
+  }
 
   async function save() {
     state.savedAt = new Date().toISOString();
     var output = MarginCore.reconstructView(PRISTINE, serialize());
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+
     if (window.showSaveFilePicker) {
+      setSaveState('saving');
       try {
-        if (!fileHandle) fileHandle = await showSaveFilePicker({ suggestedName: DOC_NAME.replace(/\.md$/, '') + '-view.html' });
+        if (!fileHandle) {
+          var stored = await getStoredHandle();
+          if (stored && await verifyPermission(stored)) fileHandle = stored;
+        }
+        if (!fileHandle) {
+          if (!firstSaveExplained) { firstSaveExplained = true; await showFirstSaveExplainer(); }
+          fileHandle = await showSaveFilePicker({
+            suggestedName: SAVE_NAME, id: 'mn-view',
+            types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }]
+          });
+          await storeHandle(fileHandle);
+        }
         var w = await fileHandle.createWritable(); await w.write(output); await w.close();
-        window.MN.setClean(); refreshSaveLabel(); return;
-      } catch (e) { if (e && e.name === 'AbortError') return; /* else fall through to download */ }
+        window.MN.setClean(); setSaveState('saved'); return;
+      } catch (e) {
+        if (e && e.name === 'AbortError') { setSaveState(window.MN.isDirty() ? 'dirty' : 'saved'); return; }
+        fileHandle = null;   // grant lost or write failed — fall through to download
+      }
     }
-    var blob = new Blob([output], { type: 'text/html' });
-    var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
-    a.download = DOC_NAME.replace(/\.md$/, '') + '-view.html'; a.click();
-    URL.revokeObjectURL(a.href); window.MN.setClean(); refreshSaveLabel();
+    downloadFallback(output);
   }
   saveBtn.addEventListener('click', save);
 
@@ -305,7 +716,8 @@ mark.mn-hl { background: #fff1a8; border-radius: 2px; cursor: pointer; }
   window.addEventListener('beforeunload', function (e) {
     if (window.MN.isDirty()) { e.preventDefault(); e.returnValue = ''; }
   });
-  refreshSaveLabel();
+
+  setSaveState(dirty ? 'dirty' : 'saved');
 })();
 </script>
 </body>

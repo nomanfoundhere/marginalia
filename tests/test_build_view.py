@@ -29,7 +29,8 @@ def test_fresh_build_embeds_source_and_empty_notes(tmp_path):
     # margin-core.js carries a literal </script> (NOTES_CLOSE); inlining must
     # neutralize it so the HTML parser does not close the script block early.
     assert "<\\/script>" in html
-    assert html.count("</script>") == 5  # exactly the 5 real script elements
+    # the 6 real script elements: theme-init, source, notes, marked, core, boot
+    assert html.count("</script>") == 6
 
 def test_rebuild_carries_existing_notes_forward(tmp_path):
     doc = tmp_path / "plan.md"
@@ -46,3 +47,30 @@ def test_rebuild_carries_existing_notes_forward(tmp_path):
     html2 = out.read_text(encoding="utf-8")
     assert NOTES_RE.search(html2).group(1).strip() == sentinel  # ledger preserved
     assert base64.b64decode(SOURCE_RE.search(html2).group(1).strip()).decode() == "# v2 edited"
+
+
+def test_artifact_has_no_external_resource_references(tmp_path):
+    # The offline guarantee, checked by test rather than inspection: the
+    # assembled artifact fetches nothing at runtime. We scope the check to the
+    # template's own markup by stripping the base64 source/notes payloads, whose
+    # arbitrary document text must not trip the assertions.
+    doc = tmp_path / "plan.md"
+    doc.write_text("# See https://example.com\n\n<link> and url(http://x) in prose", encoding="utf-8")
+    html = pathlib.Path(build_view.build(str(doc), str(BASE))).read_text(encoding="utf-8")
+    markup = SOURCE_RE.sub("SRC", NOTES_RE.sub("NOTES", html))
+    assert not re.search(r'<link\b', markup)                       # no stylesheet/font links
+    assert "@import" not in markup                                  # no css imports
+    assert "@font-face" not in markup                              # platform fonts only
+    assert not re.search(r'url\(\s*["\']?https?:', markup)         # no remote url() in css
+    assert not re.search(r'(?:src|href)\s*=\s*["\']https?:', markup)  # no remote src/href
+
+
+def test_theme_init_script_present(tmp_path):
+    doc = tmp_path / "plan.md"
+    doc.write_text("# Title", encoding="utf-8")
+    html = pathlib.Path(build_view.build(str(doc), str(BASE))).read_text(encoding="utf-8")
+    head = html[: html.index("</head>")]
+    # the pre-paint theme init lives in <head> and reads storage + the OS pref
+    assert "data-theme" in head
+    assert "mn-theme" in head
+    assert "prefers-color-scheme" in head

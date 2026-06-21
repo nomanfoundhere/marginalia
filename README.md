@@ -4,6 +4,29 @@ Zero-server, single-file Markdown annotation. Bake a `.md` into a self-contained
 `-view.html`, highlight spans and leave margin notes in any Chromium browser
 (verified in Helium), save in place, and pull the feedback back as a digest.
 
+The viewer ships two themes (it follows your OS preference and remembers a
+manual toggle), aligns each note card to its highlight in the margin, and
+fetches nothing at runtime — system fonts only, no network, fully offline.
+
+<!-- SCREENSHOT: light theme — docs/screenshots/light.png (capture in a browser) -->
+<!-- SCREENSHOT: dark theme  — docs/screenshots/dark.png  (capture in a browser) -->
+<!-- DEMO: short gif/mp4 of select → note → save → collect round-trip -->
+> _Screenshots and demo are captured in a browser and added before release._
+
+## Browser support
+Saving in place uses the [File System Access API][fsa], so the file overwrites
+itself with no re-download:
+
+- **Chromium (Chrome, Edge, Helium, Brave, …):** full in-place save. The first
+  save names the exact file to choose; after that it is a single click (the file
+  handle is remembered).
+- **Firefox / Safari:** the API is unavailable, so Save falls back to a normal
+  download of the updated `-view.html`, which you keep in place of the original.
+
+Autosave to local storage, the unsaved-changes guard, and ⌘S work everywhere.
+
+[fsa]: https://developer.mozilla.org/en-US/docs/Web/API/File_System_API
+
 ## Install the skills
 Symlink the two skills into your Claude Code skills directory:
 
