@@ -2,3 +2,9 @@
 *.pyc
 __pycache__/
 marginalia-probe.txt
+.DS_Store
+.claude/
+.remember/
+.cache/
+Test.txt
+HANDOFF.md
