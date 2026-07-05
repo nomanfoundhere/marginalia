@@ -1,4 +1,4 @@
-import base64, importlib.util, pathlib, re, sys
+import base64, importlib.util, json, pathlib, re, sys
 
 BASE = pathlib.Path(__file__).resolve().parent.parent
 spec = importlib.util.spec_from_file_location("build_view", BASE / "build-view.py")
@@ -45,7 +45,12 @@ def test_rebuild_carries_existing_notes_forward(tmp_path):
     doc.write_text("# v2 edited", encoding="utf-8")
     build_view.build(str(doc), str(BASE))
     html2 = out.read_text(encoding="utf-8")
-    assert NOTES_RE.search(html2).group(1).strip() == sentinel  # ledger preserved
+    # ledger is carried forward and stamped with srcCheck on rebuild
+    data = _read_payload(out)
+    assert data["schemaVersion"] == 2
+    assert len(data["notes"]) == 1
+    assert data["notes"][0]["id"] == "n1"
+    assert "srcCheck" in data["notes"][0]
     assert base64.b64decode(SOURCE_RE.search(html2).group(1).strip()).decode() == "# v2 edited"
 
 
@@ -74,3 +79,46 @@ def test_theme_init_script_present(tmp_path):
     assert "data-theme" in head
     assert "mn-theme" in head
     assert "prefers-color-scheme" in head
+
+
+def _notes_payload(notes, version=1):
+    return base64.b64encode(json.dumps(
+        {"schemaVersion": version, "notes": notes}).encode()).decode()
+
+def _read_payload(view_path):
+    m = NOTES_RE.search(view_path.read_text())
+    return json.loads(base64.b64decode(m.group(1)).decode())
+
+def test_rebuild_stamps_srccheck(tmp_path):
+    doc = tmp_path / "plan.md"
+    doc.write_text("alpha bravo charlie\n")
+    view = tmp_path / "plan-view.html"
+    build_view.build(str(doc), str(BASE))
+    notes = [
+        {"id": "n1", "author": "A", "anchor": {"quote": "bravo"}, "thread": [], "resolved": False},
+        {"id": "n2", "author": "A", "anchor": {"quote": "vanished"}, "thread": [], "resolved": False},
+    ]
+    html = view.read_text()
+    html = re.sub(r'(<script id="margin-notes" type="text/plain">)(.*?)(</script>)',
+                  lambda m: m.group(1) + _notes_payload(notes) + m.group(3), html,
+                  count=1, flags=re.DOTALL)
+    view.write_text(html)
+    build_view.build(str(doc), str(BASE))
+    data = _read_payload(view)
+    assert data["schemaVersion"] == 2
+    by_id = {n["id"]: n for n in data["notes"]}
+    assert by_id["n1"]["srcCheck"] == "found"
+    assert by_id["n2"]["srcCheck"] == "missing"
+
+def test_corrupt_payload_carried_verbatim(tmp_path):
+    doc = tmp_path / "plan.md"
+    doc.write_text("alpha\n")
+    view = tmp_path / "plan-view.html"
+    build_view.build(str(doc), str(BASE))
+    html = view.read_text()
+    html = re.sub(r'(<script id="margin-notes" type="text/plain">)(.*?)(</script>)',
+                  lambda m: m.group(1) + "!!!corrupt!!!" + m.group(3), html,
+                  count=1, flags=re.DOTALL)
+    view.write_text(html)
+    build_view.build(str(doc), str(BASE))
+    assert "!!!corrupt!!!" in view.read_text()
