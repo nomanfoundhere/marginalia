@@ -83,3 +83,20 @@ def test_digest_context_lines():
 def test_digest_without_source_unchanged():
     out = distill.digest(distill.extract_notes(_html(DATA)))
     assert "full timeline" in out and ":" not in out.splitlines()[2].split("]")[1].split('"')[0]
+
+def test_staleness_match():
+    assert distill.staleness(SRC_MD, SRC_MD) == "source matches the reviewed snapshot"
+
+def test_staleness_diverged_and_missing():
+    assert distill.staleness(SRC_MD, SRC_MD + "x") == "source has diverged since review"
+    assert "not found" in distill.staleness(SRC_MD, None)
+
+def test_digest_marks_changed_spans_when_diverged():
+    notes = [{"id": "n1", "author": "Aeva", "resolved": False,
+              "anchor": {"quote": "full timeline"}, "thread": []}]
+    html = _html_full(notes)
+    current = SRC_MD.replace("full timeline", "entire history")
+    out = distill.digest(distill.extract_notes(html),
+                         source=distill.extract_source(html),
+                         doc_name="plan.md", current_source=current)
+    assert "(span changed in current source)" in out

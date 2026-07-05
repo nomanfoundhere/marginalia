@@ -28,6 +28,13 @@ def extract_doc_name(html_text: str) -> str:
     m = TITLE_RE.search(html_text)
     return m.group(1) if m else "source"
 
+def staleness(snapshot: str, current) -> str:
+    if current is None:
+        return "current source not found alongside view; pass --source"
+    if current == snapshot:
+        return "source matches the reviewed snapshot"
+    return "source has diverged since review"
+
 def extract_notes(html_text: str) -> dict:
     m = NOTES_RE.search(html_text)
     if not m:
@@ -38,7 +45,7 @@ def extract_notes(html_text: str) -> dict:
     return json.loads(base64.b64decode(raw).decode("utf-8"))
 
 def digest(data: dict, include_resolved: bool = False,
-           source: str = None, doc_name: str = "source", context: int = 0) -> str:
+           source: str = None, doc_name: str = "source", context: int = 0, current_source: str = None) -> str:
     notes = data.get("notes", [])
     lines, shown = [], 0
     for n in notes:
@@ -57,6 +64,9 @@ def digest(data: dict, include_resolved: bool = False,
             span = margin_anchor.locate_in_source(source, anchor)
             addr = (" %s:%s" % (doc_name, margin_anchor.line_range(source, span[0], span[1]))
                     if span else " (unlocated)")
+        if current_source is not None and current_source != source and quote:
+            if margin_anchor.locate_in_source(current_source, anchor) is None:
+                addr += " (span changed in current source)"
         lines.append('[%s · %s · %s%s]%s "%s"'
                      % (n.get("id", "?"), n.get("author", "?"), status, tag, addr, quote))
         for e in n.get("thread", []):
@@ -87,6 +97,20 @@ if __name__ == "__main__":
     with open(args[0], encoding="utf-8") as f:
         html = f.read()
     data = extract_notes(html)
-    print(digest(data, include_resolved="--all" in flags,
-                 source=extract_source(html), doc_name=extract_doc_name(html),
-                 context=context))
+    snapshot = extract_source(html)
+    doc_name = extract_doc_name(html)
+    src_path = None
+    for f in flags:
+        if f.startswith("--source="):
+            src_path = f.split("=", 1)[1]
+    if src_path is None:
+        cand = pathlib.Path(args[0]).resolve().parent / doc_name
+        src_path = str(cand) if cand.exists() else None
+    current = None
+    if src_path and pathlib.Path(src_path).exists():
+        current = pathlib.Path(src_path).read_text(encoding="utf-8")
+    out = digest(data, include_resolved="--all" in flags, source=snapshot,
+                 doc_name=doc_name, context=context, current_source=current)
+    if snapshot is not None:
+        out = staleness(snapshot, current) + "\n" + out
+    print(out)
