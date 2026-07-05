@@ -28,6 +28,17 @@ def extract_doc_name(html_text: str) -> str:
     m = TITLE_RE.search(html_text)
     return m.group(1) if m else "source"
 
+def find_current_source(view_path: str, html_text: str, override=None):
+    """Path of the current .md, or None. The sibling guess runs only on a real
+    title match: the doc-name fallback would otherwise read any file that
+    happens to be named "source" next to the view."""
+    if override:
+        return override if pathlib.Path(override).exists() else None
+    if not TITLE_RE.search(html_text):
+        return None
+    cand = pathlib.Path(view_path).resolve().parent / extract_doc_name(html_text)
+    return str(cand) if cand.exists() else None
+
 def staleness(snapshot: str, current) -> str:
     if current is None:
         return "current source not found alongside view; pass --source"
@@ -99,15 +110,13 @@ if __name__ == "__main__":
     data = extract_notes(html)
     snapshot = extract_source(html)
     doc_name = extract_doc_name(html)
-    src_path = None
+    override = None
     for f in flags:
         if f.startswith("--source="):
-            src_path = f.split("=", 1)[1]
-    if src_path is None:
-        cand = pathlib.Path(args[0]).resolve().parent / doc_name
-        src_path = str(cand) if cand.exists() else None
+            override = f.split("=", 1)[1]
+    src_path = find_current_source(args[0], html, override)
     current = None
-    if src_path and pathlib.Path(src_path).exists():
+    if src_path is not None:
         current = pathlib.Path(src_path).read_text(encoding="utf-8")
     out = digest(data, include_resolved="--all" in flags, source=snapshot,
                  doc_name=doc_name, context=context, current_source=current)

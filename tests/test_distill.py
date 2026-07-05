@@ -100,3 +100,22 @@ def test_digest_marks_changed_spans_when_diverged():
                          source=distill.extract_source(html),
                          doc_name="plan.md", current_source=current)
     assert "(span changed in current source)" in out
+
+def test_find_current_source_reads_sibling(tmp_path):
+    (tmp_path / "plan.md").write_text(SRC_MD)
+    view = tmp_path / "plan-view.html"
+    view.write_text(_html_full([]))
+    assert distill.find_current_source(str(view), view.read_text()) == str(tmp_path / "plan.md")
+
+def test_find_current_source_skips_fallback_name(tmp_path):
+    (tmp_path / "source").write_text("decoy")
+    view = tmp_path / "plan-view.html"
+    view.write_text(_html_full([]).replace('<title>Margin Notes — plan.md</title>', ''))
+    assert distill.find_current_source(str(view), view.read_text()) is None
+
+def test_find_current_source_override_wins(tmp_path):
+    other = tmp_path / "elsewhere.md"
+    other.write_text(SRC_MD)
+    view = tmp_path / "plan-view.html"
+    view.write_text(_html_full([]))
+    assert distill.find_current_source(str(view), view.read_text(), str(other)) == str(other)
