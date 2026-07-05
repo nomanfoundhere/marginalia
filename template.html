@@ -190,6 +190,9 @@ mark.mn-hl {
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+/* Boot-time alert when the baked-in notes ledger is unreadable. Fixed red works
+   in both themes: #fff on #b91c1c is ~5.9:1, clearing WCAG AA. */
+.mn-banner { padding: .6rem 1rem; background: #b91c1c; color: #fff; font-size: .85rem; line-height: 1.4; text-align: center; }
 </style>
 </head>
 <body>
@@ -228,9 +231,25 @@ mark.mn-hl {
   }
 
   // --- state ---
-  var sourceMd = b64decode(document.getElementById('margin-source').textContent.trim());
+  // Same failure class as the notes block below: a corrupt source payload would
+  // throw in b64decode and crash the boot before anything paints. Degrade to an
+  // empty document (the rail and notes can still work) and flag it for the banner.
+  var sourceMd = '', sourceCorrupt = false;
+  try { sourceMd = b64decode(document.getElementById('margin-source').textContent.trim()); }
+  catch (e) { sourceCorrupt = true; }
   var notesRaw = document.getElementById('margin-notes').textContent.trim();
-  var state = notesRaw ? JSON.parse(b64decode(notesRaw)) : { schemaVersion: 1, notes: [] };
+  // A malformed baked-in ledger (a truncated write, a botched hand-edit) must not
+  // take the whole viewer down with it: parsing it is the first thing the boot
+  // does, so an uncaught throw here leaves the document, rail, and save handler
+  // unrendered. Boot with an empty set so the document still reads, and flag the
+  // failure so save() refuses to silently overwrite the unreadable notes on disk.
+  var state, notesCorrupt = false;
+  try {
+    state = notesRaw ? JSON.parse(b64decode(notesRaw)) : { schemaVersion: 1, notes: [] };
+  } catch (e) {
+    state = { schemaVersion: 1, notes: [] };
+    notesCorrupt = true;
+  }
   if (!state.notes) state.notes = [];
 
   // Hydrate from the localStorage autosave only when it is strictly newer than
@@ -241,8 +260,19 @@ mark.mn-hl {
   function savedAtMs(o) { var t = o && o.savedAt ? Date.parse(o.savedAt) : 0; return isNaN(t) ? 0 : t; }
   try {
     var cached = localStorage.getItem(LS_KEY);
-    if (cached) { var c = JSON.parse(cached); if (c && c.notes && savedAtMs(c) > savedAtMs(state)) state = c; }
+    // A newer autosave is a genuine recovery of the notes, so adopting it also
+    // clears the corrupt flag: writing the recovered set back to disk is safe.
+    if (cached) { var c = JSON.parse(cached); if (c && c.notes && savedAtMs(c) > savedAtMs(state)) { state = c; notesCorrupt = false; } }
   } catch (e) {}
+
+  var problems = [];
+  if (sourceCorrupt) problems.push('The document text in this file could not be read, so it is not shown.');
+  if (notesCorrupt) problems.push('The saved notes could not be read, so they are not shown; saving asks before overwriting them.');
+  if (problems.length) {
+    var banner = document.createElement('div'); banner.className = 'mn-banner'; banner.setAttribute('role', 'alert');
+    banner.textContent = problems.join(' ');
+    document.body.insertBefore(banner, document.body.firstChild);
+  }
 
   var seq = state.notes.reduce(function (m, n) {
     var k = parseInt(String(n.id).replace(/\D/g, ''), 10); return isNaN(k) ? m : Math.max(m, k);
@@ -471,6 +501,10 @@ mark.mn-hl {
       var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = '🗑';
       delBtn.setAttribute('aria-label', 'Delete note');
       delBtn.addEventListener('click', function () {
+        // Delete is irreversible and ungated (any reviewer, no undo); confirm so a
+        // passed-around file does not lose a thread to a stray click. Resolve, by
+        // contrast, is a reversible toggle and needs no guard.
+        if (!confirm('Delete note ' + n.id + ' and its thread? This cannot be undone.')) return;
         state.notes = state.notes.filter(function (x) { return x !== n; });
         paintHighlights(); renderRail(); markDirty();
       });
@@ -676,10 +710,14 @@ mark.mn-hl {
     var blob = new Blob([output], { type: 'text/html' });
     var a = document.createElement('a'); a.href = URL.createObjectURL(blob);
     a.download = SAVE_NAME; a.click(); URL.revokeObjectURL(a.href);
-    window.MN.setClean(); setSaveState('saved');
+    window.MN.setClean(); setSaveState('saved'); notesCorrupt = false;
   }
 
   async function save() {
+    // The on-disk ledger could not be parsed at boot, so this state does not hold
+    // those notes; writing now replaces the unreadable-but-present notes with the
+    // current set. Confirm before that clobber so the original stays recoverable.
+    if (notesCorrupt && !confirm('The notes already saved in this file could not be read and are not shown here. Saving now overwrites them. Continue?')) return;
     state.savedAt = new Date().toISOString();
     var output = MarginCore.reconstructView(PRISTINE, serialize());
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
@@ -700,7 +738,9 @@ mark.mn-hl {
           await storeHandle(fileHandle);
         }
         var w = await fileHandle.createWritable(); await w.write(output); await w.close();
-        window.MN.setClean(); setSaveState('saved'); return;
+        // The file on disk now holds a readable ledger, so drop the corrupt flag:
+        // later saves this session must not keep re-firing the overwrite confirm.
+        notesCorrupt = false; window.MN.setClean(); setSaveState('saved'); return;
       } catch (e) {
         if (e && e.name === 'AbortError') { setSaveState(window.MN.isDirty() ? 'dirty' : 'saved'); return; }
         fileHandle = null;   // grant lost or write failed — fall through to download

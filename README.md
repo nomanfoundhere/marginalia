@@ -8,6 +8,12 @@ The viewer ships two themes (it follows your OS preference and remembers a
 manual toggle), aligns each note card to its highlight in the margin, and
 fetches nothing at runtime — system fonts only, no network, fully offline.
 
+Each note opens a thread: reviewers reply, resolve, or delete it, and edit their
+own messages. A reviewer sets a name once through an inline chip (no browser
+prompt), and a colored monogram then marks every message they leave. A note
+whose quoted text no longer matches the document shows as unanchored, keeping its
+quote, instead of vanishing.
+
 <!-- SCREENSHOT: light theme — docs/screenshots/light.png (capture in a browser) -->
 <!-- SCREENSHOT: dark theme  — docs/screenshots/dark.png  (capture in a browser) -->
 <!-- DEMO: short gif/mp4 of select → note → save → collect round-trip -->
