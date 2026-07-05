@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Distill the embedded margin-notes block into a token-cheap text digest."""
-import base64, json, re, sys
+import base64, datetime, hashlib, json, re, sys
 
 NOTES_RE = re.compile(
     r'<script id="margin-notes" type="text/plain">(.*?)</script>', re.DOTALL)
@@ -96,6 +96,27 @@ def digest(data: dict, include_resolved: bool = False,
     header = "%d%s note(s) of %d total" % (shown, scope, len(notes))
     return (header + "\n\n" + "\n".join(lines)).rstrip()
 
+def write_sidecar(view_path: str, data: dict, snapshot, doc_name: str):
+    """Durable, git-diffable copy of the ledger. Derived output only: the view
+    file stays authoritative and this file is regenerated on every collect."""
+    out = {
+        "docName": doc_name,
+        "sourceSha256": hashlib.sha256((snapshot or "").encode("utf-8")).hexdigest(),
+        "extractedAt": datetime.datetime.now(datetime.timezone.utc)
+                        .isoformat(timespec="seconds"),
+        "schemaVersion": data.get("schemaVersion", 1),
+        "notes": data.get("notes", []),
+    }
+    p = pathlib.Path(view_path).resolve().parent / (
+        pathlib.Path(doc_name).stem + ".notes.json")
+    try:
+        p.write_text(json.dumps(out, indent=2, ensure_ascii=False) + "\n",
+                     encoding="utf-8")
+        return str(p)
+    except OSError as e:
+        print("sidecar not written: %s" % e, file=sys.stderr)
+        return None
+
 if __name__ == "__main__":
     flags = [a for a in sys.argv[1:] if a.startswith("-")]
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
@@ -122,4 +143,6 @@ if __name__ == "__main__":
                  doc_name=doc_name, context=context, current_source=current)
     if snapshot is not None:
         out = staleness(snapshot, current) + "\n" + out
+    if "--no-sidecar" not in flags:
+        write_sidecar(args[0], data, snapshot, doc_name)
     print(out)

@@ -119,3 +119,17 @@ def test_find_current_source_override_wins(tmp_path):
     view = tmp_path / "plan-view.html"
     view.write_text(_html_full([]))
     assert distill.find_current_source(str(view), view.read_text(), str(other)) == str(other)
+
+def test_sidecar_written_next_to_view(tmp_path):
+    notes = [{"id": "n1", "author": "Aeva", "resolved": False,
+              "anchor": {"quote": "full timeline"}, "thread": []}]
+    view = tmp_path / "plan-view.html"
+    view.write_text(_html_full(notes))
+    data = distill.extract_notes(view.read_text())
+    p = distill.write_sidecar(str(view), data, SRC_MD, "plan.md")
+    side = json.loads(pathlib.Path(p).read_text())
+    assert p == str(tmp_path / "plan.notes.json")
+    assert side["docName"] == "plan.md"
+    assert side["notes"][0]["id"] == "n1"
+    assert len(side["sourceSha256"]) == 64
+    assert "extractedAt" in side
