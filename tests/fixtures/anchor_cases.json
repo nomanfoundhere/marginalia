@@ -1,0 +1,9 @@
+[
+  {"name": "absent quote",        "text": "aaa bbb ccc", "anchor": {"quote": "zzz"}, "expected": -1},
+  {"name": "empty anchor",        "text": "aaa bbb ccc", "anchor": {}, "expected": -1},
+  {"name": "single hit",          "text": "aaa bbb ccc", "anchor": {"quote": "bbb"}, "expected": 4},
+  {"name": "prefix disambiguates","text": "The cat sat. The cat ran.", "anchor": {"quote": "The cat", "prefix": "sat. ", "suffix": " ran"}, "expected": 13},
+  {"name": "suffix disambiguates","text": "x cat y. z cat w.", "anchor": {"quote": "cat", "prefix": "", "suffix": " w"}, "expected": 11},
+  {"name": "ambiguous no winner", "text": "ab ab", "anchor": {"quote": "ab", "prefix": "", "suffix": ""}, "expected": -1},
+  {"name": "unicode multibyte",   "text": "naïve café naïve bar", "anchor": {"quote": "naïve", "prefix": "café ", "suffix": " bar"}, "expected": 11}
+]

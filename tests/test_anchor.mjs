@@ -27,3 +27,16 @@ test('partial context still picks a strict winner', () => {
   const blue = text.indexOf('fox', 5);
   assert.equal(locateAnchor(text, { quote: 'fox', prefix: 'blue ', suffix: '.' }), blue);
 });
+
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const casesPath = join(dirname(fileURLToPath(import.meta.url)), 'fixtures', 'anchor_cases.json');
+const parityCases = JSON.parse(readFileSync(casesPath, 'utf8'));
+
+test('locateAnchor matches shared parity fixtures', () => {
+  for (const c of parityCases) {
+    assert.equal(locateAnchor(c.text, c.anchor), c.expected, c.name);
+  }
+});
