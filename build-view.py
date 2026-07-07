@@ -42,13 +42,13 @@ def _stamp_src_checks(notes_b64: str, new_source: str) -> str:
     try:
         data = json.loads(base64.b64decode(notes_b64).decode("utf-8"))
         notes = data["notes"]
+        for n in notes:
+            found = margin_anchor.locate_in_source(new_source, n.get("anchor") or {})
+            n["srcCheck"] = "found" if found else "missing"
+        data["schemaVersion"] = 2
+        return _b64(json.dumps(data, ensure_ascii=False))
     except Exception:
         return notes_b64
-    for n in notes:
-        found = margin_anchor.locate_in_source(new_source, n.get("anchor") or {})
-        n["srcCheck"] = "found" if found else "missing"
-    data["schemaVersion"] = 2
-    return _b64(json.dumps(data, ensure_ascii=False))
 
 def build(doc_md_path: str, base_dir: str) -> str:
     base = pathlib.Path(base_dir)

@@ -122,3 +122,20 @@ def test_corrupt_payload_carried_verbatim(tmp_path):
     view.write_text(html)
     build_view.build(str(doc), str(BASE))
     assert "!!!corrupt!!!" in view.read_text()
+
+def test_malformed_notes_shape_carried_verbatim(tmp_path):
+    # Valid base64, valid JSON, but "notes" is not a list of dicts: the
+    # per-note stamping loop must not be allowed to raise past the guard.
+    doc = tmp_path / "plan.md"
+    doc.write_text("alpha\n")
+    view = tmp_path / "plan-view.html"
+    build_view.build(str(doc), str(BASE))
+    bad_payload = base64.b64encode(
+        json.dumps({"schemaVersion": 1, "notes": "oops"}).encode()).decode()
+    html = view.read_text()
+    html = re.sub(r'(<script id="margin-notes" type="text/plain">)(.*?)(</script>)',
+                  lambda m: m.group(1) + bad_payload + m.group(3), html,
+                  count=1, flags=re.DOTALL)
+    view.write_text(html)
+    build_view.build(str(doc), str(BASE))
+    assert NOTES_RE.search(view.read_text()).group(1).strip() == bad_payload
