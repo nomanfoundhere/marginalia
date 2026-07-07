@@ -128,6 +128,8 @@ mark.mn-hl {
 }
 .mn-card.resolved { opacity: .6; }
 .mn-card.unanchored { border-style: dashed; }
+.mn-card.changed { border-style: dotted; }
+.mn-card.changed .mn-badge { background: var(--accent); }
 
 .mn-card-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .55rem; }
 .mn-id { font: .72rem/1 ui-monospace, monospace; color: var(--ink-3);
@@ -251,6 +253,10 @@ mark.mn-hl {
     notesCorrupt = true;
   }
   if (!state.notes) state.notes = [];
+
+  state.schemaVersion = 2;
+  // v1 ledgers predate kinds; every reader from here on can rely on n.kind.
+  state.notes.forEach(function (n) { if (!n.kind) n.kind = 'comment'; });
 
   // Hydrate from the localStorage autosave only when it is strictly newer than
   // the notes baked into this file. A bare "cache always wins" would let a
@@ -492,7 +498,13 @@ mark.mn-hl {
       var head = document.createElement('div'); head.className = 'mn-card-head';
       var id = document.createElement('span'); id.className = 'mn-id'; id.textContent = n.id;
       head.appendChild(id);
-      if (unanchored) { var badge = document.createElement('span'); badge.className = 'mn-badge'; badge.textContent = 'unanchored'; head.appendChild(badge); }
+      var changed = n.srcCheck === 'missing';
+      if (unanchored || changed) {
+        var badge = document.createElement('span'); badge.className = 'mn-badge';
+        badge.textContent = changed ? 'text changed' : 'unanchored';
+        head.appendChild(badge);
+      }
+      if (changed) card.classList.add('changed');
       var grow = document.createElement('span'); grow.className = 'grow'; grow.style.flex = '1'; head.appendChild(grow);
       var resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-icon';
       resolveBtn.textContent = n.resolved ? '↺' : '✓';
@@ -511,7 +523,7 @@ mark.mn-hl {
       head.appendChild(resolveBtn); head.appendChild(delBtn);
       card.appendChild(head);
 
-      if (unanchored && n.anchor && n.anchor.quote) {
+      if ((unanchored || changed) && n.anchor && n.anchor.quote) {
         var q = document.createElement('div'); q.className = 'mn-quote'; q.textContent = '“' + n.anchor.quote + '”';
         card.appendChild(q);
       }
