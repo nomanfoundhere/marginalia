@@ -252,11 +252,17 @@ mark.mn-hl {
     state = { schemaVersion: 1, notes: [] };
     notesCorrupt = true;
   }
-  if (!state.notes) state.notes = [];
-
-  state.schemaVersion = 2;
-  // v1 ledgers predate kinds; every reader from here on can rely on n.kind.
-  state.notes.forEach(function (n) { if (!n.kind) n.kind = 'comment'; });
+  // schema-v2 normalization: applied wherever state is assigned (baked-in
+  // load below, and the localStorage hydration further down), so every path
+  // into state leaves every note carrying a kind and schemaVersion at 2 --
+  // a stale pre-upgrade autosave must not be able to reintroduce v1 shape.
+  function normalizeState() {
+    if (!state.notes) state.notes = [];
+    state.schemaVersion = 2;
+    // v1 ledgers predate kinds; every reader from here on can rely on n.kind.
+    state.notes.forEach(function (n) { if (!n.kind) n.kind = 'comment'; });
+  }
+  normalizeState();
 
   // Hydrate from the localStorage autosave only when it is strictly newer than
   // the notes baked into this file. A bare "cache always wins" would let a
@@ -268,7 +274,7 @@ mark.mn-hl {
     var cached = localStorage.getItem(LS_KEY);
     // A newer autosave is a genuine recovery of the notes, so adopting it also
     // clears the corrupt flag: writing the recovered set back to disk is safe.
-    if (cached) { var c = JSON.parse(cached); if (c && c.notes && savedAtMs(c) > savedAtMs(state)) { state = c; notesCorrupt = false; } }
+    if (cached) { var c = JSON.parse(cached); if (c && c.notes && savedAtMs(c) > savedAtMs(state)) { state = c; notesCorrupt = false; normalizeState(); } }
   } catch (e) {}
 
   var problems = [];
