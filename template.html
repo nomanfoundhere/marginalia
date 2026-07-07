@@ -28,6 +28,7 @@ html[data-theme="light"] {
   --shadow:      5px 5px 0 rgba(17, 20, 26, .10);
   --shadow-card: 4px 4px 0 rgba(17, 20, 26, .08);
   --shadow-btn:  2px 2px 0 rgba(17, 20, 26, .12);
+  --hl-yellow: #fde68a; --hl-green: #bbf7d0; --hl-pink: #fbcfe8;
 }
 html[data-theme="dark"] {
   --desk: #1a1d24; --panel: #23272f;
@@ -37,6 +38,7 @@ html[data-theme="dark"] {
   --shadow:      6px 6px 0 rgba(0, 0, 0, .46);
   --shadow-card: 4px 4px 0 rgba(0, 0, 0, .42);
   --shadow-btn:  2px 2px 0 rgba(0, 0, 0, .46);
+  --hl-yellow: #6d5a12; --hl-green: #1c5636; --hl-pink: #6b2a50;
 }
 
 :root { --rail: 320px; }
@@ -165,11 +167,23 @@ mark.mn-hl {
 .mn-msg textarea { resize: vertical; }
 .mn-reply { resize: none; }
 
-/* selection affordance */
-.mn-add { position: absolute; z-index: 30; transform: translateY(-120%);
-  font: inherit; font-size: .82rem; padding: .3rem .65rem; cursor: pointer;
-  border: 1px solid var(--line-2); border-radius: 8px;
-  background: var(--accent); color: #fff; box-shadow: var(--shadow-btn); }
+/* selection toolbar */
+.mn-tools { position: absolute; z-index: 30; transform: translateY(-120%);
+  display: flex; gap: .25rem; align-items: center; padding: .25rem .35rem;
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px;
+  box-shadow: var(--shadow-btn); }
+.mn-tool { font: inherit; font-size: .82rem; line-height: 1; cursor: pointer;
+  border: 1px solid transparent; border-radius: 6px; padding: .3rem .45rem;
+  background: none; color: var(--ink); }
+.mn-tool:hover { border-color: var(--line-2); background: var(--field); }
+.mn-tool-dot { width: 16px; height: 16px; padding: 0; border-radius: 50%;
+  border: 1px solid var(--line-2); }
+mark.mn-hl.hl-yellow { background: var(--hl-yellow); text-decoration: none; }
+mark.mn-hl.hl-green  { background: var(--hl-green);  text-decoration: none; }
+mark.mn-hl.hl-pink   { background: var(--hl-pink);   text-decoration: none; }
+mark.mn-hl.hl-under  { background: transparent; }
+mark.mn-hl.hl-strike { background: transparent;
+  text-decoration-line: line-through; }
 
 /* first-save explainer — an inline panel, never a browser modal */
 .mn-explainer { position: fixed; top: 60px; right: 1.5rem; z-index: 50;
@@ -396,25 +410,22 @@ mark.mn-hl {
     return { start: startFlat, quote: sel.toString() };
   }
 
-  // --- add-note affordance on selection ---
-  var addBtn = document.createElement('button');
-  addBtn.className = 'mn-add'; addBtn.textContent = '+ note';
-  addBtn.setAttribute('aria-label', 'Leave a note on the selected text');
-  addBtn.hidden = true;
-  document.body.appendChild(addBtn);
+  // --- selection toolbar: three highlight colors, underline, strike, comment ---
+  var lastColor = 'yellow';
+  var tools = document.createElement('div');
+  tools.className = 'mn-tools'; tools.hidden = true;
+  tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Annotate selection');
+  document.body.appendChild(tools);
+  function hideTools() { tools.hidden = true; }
 
-  document.addEventListener('selectionchange', function () {
-    var sel = document.getSelection();
-    if (!sel || sel.isCollapsed || !doc.contains(sel.anchorNode)) { addBtn.hidden = true; return; }
-    var rect = sel.getRangeAt(0).getBoundingClientRect();
-    if (!rect.width) { addBtn.hidden = true; return; }
-    addBtn.style.left = (window.scrollX + rect.left) + 'px';
-    addBtn.style.top = (window.scrollY + rect.top) + 'px';
-    addBtn.hidden = false;
-  });
-
-  addBtn.addEventListener('mousedown', function (e) {
-    e.preventDefault();
+  function toolBtn(label, aria, cls) {
+    var b = document.createElement('button');
+    b.className = 'mn-tool' + (cls ? ' ' + cls : '');
+    b.innerHTML = label; b.setAttribute('aria-label', aria);
+    tools.appendChild(b);
+    return b;
+  }
+  function anchorFromSelection() {
     var sel = document.getSelection();
     var flat = flatFromSelection(sel);
     var text = flatText();
@@ -423,17 +434,50 @@ mark.mn-hl {
       prefix: text.slice(Math.max(0, flat.start - 30), flat.start),
       suffix: text.slice(flat.start + flat.quote.length, flat.start + flat.quote.length + 30)
     };
-    addBtn.hidden = true; sel.removeAllRanges();
-    requireIdentity(function () { createNote(anchor); });
+    hideTools(); sel.removeAllRanges();
+    return anchor;
+  }
+  function wireTool(btn, fn) {
+    btn.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      var anchor = anchorFromSelection();
+      requireIdentity(function () { fn(anchor); });
+    });
+  }
+  ['yellow', 'green', 'pink'].forEach(function (c) {
+    var b = toolBtn('', 'Highlight ' + c, 'mn-tool-dot');
+    b.style.background = 'var(--hl-' + c + ')';
+    wireTool(b, function (anchor) { lastColor = c; createMark(anchor, 'highlight', c); });
+  });
+  wireTool(toolBtn('<u>U</u>', 'Underline'), function (anchor) { createMark(anchor, 'underline'); });
+  wireTool(toolBtn('<s>S</s>', 'Strike through'), function (anchor) { createMark(anchor, 'strike'); });
+  wireTool(toolBtn('+ note', 'Leave a note on the selected text'), createNote);
+
+  document.addEventListener('selectionchange', function () {
+    var sel = document.getSelection();
+    if (!sel || sel.isCollapsed || !doc.contains(sel.anchorNode)) { hideTools(); return; }
+    var rect = sel.getRangeAt(0).getBoundingClientRect();
+    if (!rect.width) { hideTools(); return; }
+    tools.style.left = (window.scrollX + rect.left) + 'px';
+    tools.style.top = (window.scrollY + rect.top) + 'px';
+    tools.hidden = false;
   });
 
   function createNote(anchor) {
     var id = 'n' + (++seq);
-    var note = { id: id, author: me, color: colorFor(me), created: new Date().toISOString(),
+    var note = { id: id, author: me, kind: 'comment', color: colorFor(me), created: new Date().toISOString(),
       anchor: anchor, thread: [{ author: me, ts: new Date().toISOString(), body: '' }], resolved: false };
     state.notes.push(note);
     paintHighlights(); renderRail(); markDirty();
     var ta = rail.querySelector('[data-edit="' + id + '"]'); if (ta) ta.focus();
+  }
+
+  function createMark(anchor, kind, color) {
+    var note = { id: 'n' + (++seq), author: me, kind: kind,
+      created: new Date().toISOString(), anchor: anchor, thread: [], resolved: false };
+    if (color) note.color = color;
+    state.notes.push(note);
+    paintHighlights(); renderRail(); markDirty();
   }
 
   // --- repaint highlights from anchors ---
@@ -452,8 +496,15 @@ mark.mn-hl {
       var range = rangeFromFlat(idx, n.anchor.quote.length);
       if (!range) return;
       var mk = document.createElement('mark'); mk.className = 'mn-hl'; mk.dataset.note = n.id;
-      mk.style.backgroundColor = tintFor(n.author);
-      mk.style.textDecorationColor = colorFor(n.author);
+      if (n.kind === 'highlight') {
+        mk.classList.add('hl-' + (n.color || 'yellow'));
+      } else if (n.kind === 'underline' || n.kind === 'strike') {
+        mk.classList.add(n.kind === 'strike' ? 'hl-strike' : 'hl-under');
+        mk.style.textDecorationColor = colorFor(n.author);
+      } else {
+        mk.style.backgroundColor = tintFor(n.author);
+        mk.style.textDecorationColor = colorFor(n.author);
+      }
       try { range.surroundContents(mk); } catch (e) { /* spans element boundary: skip paint, note still listed */ }
     });
   }
