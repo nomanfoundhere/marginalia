@@ -145,6 +145,10 @@ mark.mn-hl {
 .mn-icon:hover { color: var(--ink); background: var(--field); border-color: var(--line); }
 .mn-quote { font-size: .85rem; color: var(--ink-2);
   border-left: 3px solid var(--line-2); padding-left: .5rem; margin: 0 0 .6rem; }
+.mn-card.mark { padding: .45rem .6rem; }
+.mn-card.mark .mn-quote { margin: 0; }
+.mn-kind { width: 12px; height: 12px; border-radius: 3px; flex: none;
+  border: 1px solid var(--line-2); }
 
 /* conversation: continuous connector line behind the avatars */
 .mn-conv { position: relative; display: flex; flex-direction: column; gap: .7rem; }
@@ -548,6 +552,8 @@ mark.mn-hl.hl-strike { background: transparent;
     shown.forEach(function (n) {
       var card = document.createElement('article'); card.className = 'mn-card'; card.dataset.note = n.id;
       card.setAttribute('aria-label', 'Note ' + n.id);
+      var isMark = n.kind !== 'comment' && (!n.thread || !n.thread.length);
+      if (isMark) card.classList.add('mark');
       var unanchored = !n.resolved && n._located < 0;
       if (n.resolved) card.classList.add('resolved');
       if (unanchored) card.classList.add('unanchored');
@@ -555,6 +561,13 @@ mark.mn-hl.hl-strike { background: transparent;
       var head = document.createElement('div'); head.className = 'mn-card-head';
       var id = document.createElement('span'); id.className = 'mn-id'; id.textContent = n.id;
       head.appendChild(id);
+      if (n.kind !== 'comment') {
+        var kd = document.createElement('span'); kd.className = 'mn-kind';
+        kd.title = n.kind + (n.color ? ' ' + n.color : '');
+        kd.style.background = n.kind === 'highlight'
+          ? 'var(--hl-' + (n.color || 'yellow') + ')' : colorFor(n.author);
+        head.appendChild(kd);
+      }
       var changed = n.srcCheck === 'missing';
       if (unanchored || changed) {
         var badge = document.createElement('span'); badge.className = 'mn-badge';
@@ -577,16 +590,30 @@ mark.mn-hl.hl-strike { background: transparent;
         state.notes = state.notes.filter(function (x) { return x !== n; });
         paintHighlights(); renderRail(); markDirty();
       });
+      if (isMark) {
+        var talkBtn = document.createElement('button'); talkBtn.className = 'mn-icon';
+        talkBtn.textContent = '💬'; talkBtn.setAttribute('aria-label', 'Comment on this mark');
+        talkBtn.addEventListener('click', function () {
+          requireIdentity(function () {
+            n.thread.push({ author: me, ts: new Date().toISOString(), body: '' });
+            renderRail(); markDirty();
+            var ta = rail.querySelector('[data-edit="' + n.id + '"]'); if (ta) ta.focus();
+          });
+        });
+        head.appendChild(talkBtn);
+      }
       head.appendChild(resolveBtn); head.appendChild(delBtn);
       card.appendChild(head);
 
-      if ((unanchored || changed) && n.anchor && n.anchor.quote) {
-        var q = document.createElement('div'); q.className = 'mn-quote'; q.textContent = '“' + n.anchor.quote + '”';
+      if ((unanchored || changed || isMark) && n.anchor && n.anchor.quote) {
+        var qt = n.anchor.quote;
+        if (isMark && qt.length > 80) qt = qt.slice(0, 77) + '…';
+        var q = document.createElement('div'); q.className = 'mn-quote'; q.textContent = '“' + qt + '”';
         card.appendChild(q);
       }
 
       // Resolved cards collapse to just their header.
-      if (!n.resolved) {
+      if (!n.resolved && !isMark) {
         var conv = document.createElement('div'); conv.className = 'mn-conv';
         n.thread.forEach(function (entry) { conv.appendChild(messageRow(n, entry)); });
 
