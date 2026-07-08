@@ -292,6 +292,12 @@ mark.mn-hl.hl-strike { background: transparent;
   // into state leaves every note carrying a kind and schemaVersion at 2 --
   // a stale pre-upgrade autosave must not be able to reintroduce v1 shape.
   function normalizeState() {
+    // build-view carries a present-but-malformed notes payload through verbatim
+    // (it repairs nothing it cannot parse), so a non-array notes can reach here
+    // intact. Treat it like an undecodable ledger: reset and flag, so the banner
+    // and the save-time overwrite guard fire, rather than the forEach below
+    // throwing and aborting boot to a blank page, or the notes silently vanishing.
+    if (state.notes && !Array.isArray(state.notes)) { state.notes = []; notesCorrupt = true; }
     if (!state.notes) state.notes = [];
     state.schemaVersion = 2;
     // v1 ledgers predate kinds; every reader from here on can rely on n.kind.
@@ -305,11 +311,15 @@ mark.mn-hl.hl-strike { background: transparent;
   // cross-round data loss); comparing savedAt keeps regeneration authoritative
   // while still recovering unsaved local work after a crash or closed tab.
   function savedAtMs(o) { var t = o && o.savedAt ? Date.parse(o.savedAt) : 0; return isNaN(t) ? 0 : t; }
+  // A cache adopted here is unsaved-to-file work recovered from a crash or a
+  // closed tab; recording that lets the save flags below reflect it once they
+  // are declared (they init further down, so setting them here would be clobbered).
+  var recoveredNewer = false;
   try {
     var cached = localStorage.getItem(LS_KEY);
     // A newer autosave is a genuine recovery of the notes, so adopting it also
     // clears the corrupt flag: writing the recovered set back to disk is safe.
-    if (cached) { var c = JSON.parse(cached); if (c && c.notes && savedAtMs(c) > savedAtMs(state)) { state = c; notesCorrupt = false; normalizeState(); } }
+    if (cached) { var c = JSON.parse(cached); if (c && c.notes && savedAtMs(c) > savedAtMs(state)) { state = c; notesCorrupt = false; normalizeState(); recoveredNewer = true; } }
   } catch (e) {}
 
   var problems = [];
@@ -702,6 +712,12 @@ mark.mn-hl.hl-strike { background: transparent;
   // unautosaved from the instant it is made until autosave()'s setItem call
   // returns; the chip must not claim "Safe on this Mac" before that happens.
   var autosaved = false;
+  // Notes recovered from a newer autosave at boot are real work the file on disk
+  // does not yet hold: mark dirty so the chip reads "Safe on this Mac — not yet
+  // in the file" (not "In file") and beforeunload warns, and autosaved because
+  // the recovered set is by definition already in localStorage. Applied here,
+  // after the declarations above, so it survives their initialization.
+  if (recoveredNewer) { dirty = true; autosaved = true; }
   function markDirty() { dirty = true; autosaved = false; document.dispatchEvent(new CustomEvent('mn-dirty')); }
 
   // Delete forgives instead of asking: the note is gone at once, and a short
