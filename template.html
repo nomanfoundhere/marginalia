@@ -1019,6 +1019,27 @@ mark.mn-hl.hl-strike { background: transparent;
   window.addEventListener('keydown', function (e) {
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
   });
+
+  // Selection-scoped keys: only with a live selection in the document and
+  // focus outside any editing surface, so typing in threads is never hijacked.
+  window.addEventListener('keydown', function (e) {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === 'Escape') { hideTools(); return; }
+    var t = e.target;
+    if (t && t.closest && t.closest('textarea, input, [contenteditable]')) return;
+    var sel = document.getSelection();
+    if (!sel || sel.isCollapsed || !doc.contains(sel.anchorNode)) return;
+    var k = e.key.toLowerCase();
+    if (k !== 'h' && k !== 'u' && k !== 's' && k !== 'c') return;
+    e.preventDefault();
+    var anchor = anchorFromSelection();
+    requireIdentity(function () {
+      if (k === 'h') createMark(anchor, 'highlight', lastColor);
+      else if (k === 'u') createMark(anchor, 'underline');
+      else if (k === 's') createMark(anchor, 'strike');
+      else createNote(anchor);
+    });
+  });
   window.addEventListener('beforeunload', function (e) {
     if (window.MN.isDirty()) { e.preventDefault(); e.returnValue = ''; }
   });
