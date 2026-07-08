@@ -14,6 +14,13 @@ prompt), and a colored monogram then marks every message they leave. A note
 whose quoted text no longer matches the document shows as unanchored, keeping its
 quote, instead of vanishing.
 
+Selecting text raises a small toolbar: three highlight colors, underline,
+strikethrough, and a note. Bare marks travel to the author as wordless
+flags on their exact span; notes carry threads. The collect step prints
+each item with its source line address, states whether the `.md` has moved
+since the review, and writes a git-friendly `<doc>.notes.json` sidecar so
+the conversation survives the view file.
+
 <!-- SCREENSHOT: light theme — docs/screenshots/light.png (capture in a browser) -->
 <!-- SCREENSHOT: dark theme  — docs/screenshots/dark.png  (capture in a browser) -->
 <!-- DEMO: short gif/mp4 of select → note → save → collect round-trip -->
@@ -23,9 +30,9 @@ quote, instead of vanishing.
 Saving in place uses the [File System Access API][fsa], so the file overwrites
 itself with no re-download:
 
-- **Chromium (Chrome, Edge, Helium, Brave, …):** full in-place save. The first
-  save names the exact file to choose; after that it is a single click (the file
-  handle is remembered).
+- **Chromium (Chrome, Edge, Helium, Brave, …):** full in-place save. Arm it
+  once by dragging the file onto its own window (or picking it once — the
+  bar shows the exact path); after that it is a single click.
 - **Firefox / Safari:** the API is unavailable, so Save falls back to a normal
   download of the updated `-view.html`, which you keep in place of the original.
 
