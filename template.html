@@ -201,6 +201,12 @@ mark.mn-hl.hl-strike { background: transparent;
   background: var(--field); border: 1px solid var(--line); border-radius: 4px; padding: .05em .3em; }
 .mn-explainer .row { display: flex; gap: .5rem; margin-top: .8rem; }
 
+/* post-delete undo toast — replaces the native confirm */
+.mn-undo { position: fixed; left: 50%; bottom: 1.2rem; transform: translateX(-50%);
+  z-index: 50; display: flex; gap: .7rem; align-items: center;
+  background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px;
+  box-shadow: var(--shadow); padding: .55rem .9rem; font-size: .88rem; }
+
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 [hidden] { display: none !important; }
 
@@ -594,12 +600,10 @@ mark.mn-hl.hl-strike { background: transparent;
       var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = '🗑';
       delBtn.setAttribute('aria-label', 'Delete note');
       delBtn.addEventListener('click', function () {
-        // Delete is irreversible and ungated (any reviewer, no undo); confirm so a
-        // passed-around file does not lose a thread to a stray click. Resolve, by
-        // contrast, is a reversible toggle and needs no guard.
-        if (!confirm('Delete note ' + n.id + ' and its thread? This cannot be undone.')) return;
+        var index = state.notes.indexOf(n);
         state.notes = state.notes.filter(function (x) { return x !== n; });
         paintHighlights(); renderRail(); markDirty();
+        showUndoToast(n, index);
       });
       if (isMark) {
         var talkBtn = document.createElement('button'); talkBtn.className = 'mn-icon';
@@ -699,6 +703,26 @@ mark.mn-hl.hl-strike { background: transparent;
   // returns; the chip must not claim "Safe on this Mac" before that happens.
   var autosaved = false;
   function markDirty() { dirty = true; autosaved = false; document.dispatchEvent(new CustomEvent('mn-dirty')); }
+
+  // Delete forgives instead of asking: the note is gone at once, and a short
+  // undo window replaces the native confirm the no-prompt decision forbids.
+  var undoToast = null, undoTimer = 0;
+  function showUndoToast(note, index) {
+    if (undoToast) { undoToast.remove(); clearTimeout(undoTimer); }
+    var t = document.createElement('div'); t.className = 'mn-undo'; undoToast = t;
+    t.setAttribute('role', 'status');
+    var label = document.createElement('span');
+    label.textContent = 'Note ' + note.id + ' deleted';
+    var undo = document.createElement('button'); undo.className = 'mn-btn'; undo.textContent = 'Undo';
+    undo.addEventListener('click', function () {
+      state.notes.splice(Math.min(index, state.notes.length), 0, note);
+      paintHighlights(); renderRail(); markDirty();
+      t.remove(); undoToast = null; clearTimeout(undoTimer);
+    });
+    t.appendChild(label); t.appendChild(undo);
+    document.body.appendChild(t);
+    undoTimer = setTimeout(function () { t.remove(); undoToast = null; }, 6000);
+  }
 
   window.MN = { state: state, paintHighlights: paintHighlights, renderRail: renderRail,
     isDirty: function () { return dirty; }, setClean: function () { dirty = false; }, me: function () { return me; } };
@@ -920,6 +944,24 @@ mark.mn-hl.hl-strike { background: transparent;
     });
   }
 
+  function showOverwritePanel() {
+    return new Promise(function (resolve, reject) {
+      var panel = document.createElement('div'); panel.className = 'mn-explainer';
+      panel.setAttribute('role', 'alertdialog');
+      var h = document.createElement('h3'); h.textContent = 'Overwrite unreadable notes?';
+      var p = document.createElement('p'); p.style.margin = '0';
+      p.textContent = 'The notes already saved in this file could not be read and are not shown here. Saving writes the current notes over them.';
+      var row = document.createElement('div'); row.className = 'row';
+      var ok = document.createElement('button'); ok.className = 'mn-save'; ok.textContent = 'Overwrite';
+      var cancel = document.createElement('button'); cancel.className = 'mn-btn'; cancel.textContent = 'Cancel';
+      ok.addEventListener('click', function () { panel.remove(); resolve(); });
+      cancel.addEventListener('click', function () { panel.remove(); reject({ name: 'AbortError' }); });
+      row.appendChild(ok); row.appendChild(cancel);
+      panel.appendChild(h); panel.appendChild(p); panel.appendChild(row);
+      document.body.appendChild(panel); cancel.focus();
+    });
+  }
+
   var fileHandle = null;
   function downloadFallback(output) {
     var blob = new Blob([output], { type: 'text/html' });
@@ -932,7 +974,10 @@ mark.mn-hl.hl-strike { background: transparent;
     // The on-disk ledger could not be parsed at boot, so this state does not hold
     // those notes; writing now replaces the unreadable-but-present notes with the
     // current set. Confirm before that clobber so the original stays recoverable.
-    if (notesCorrupt && !confirm('The notes already saved in this file could not be read and are not shown here. Saving now overwrites them. Continue?')) return;
+    if (notesCorrupt) {
+      try { await showOverwritePanel(); }
+      catch (e) { setSaveState(window.MN.isDirty() ? 'dirty' : 'saved'); return; }
+    }
     state.savedAt = new Date().toISOString();
     var output = MarginCore.reconstructView(PRISTINE, serialize());
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
