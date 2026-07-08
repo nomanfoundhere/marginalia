@@ -69,6 +69,8 @@ body {
 .mn-btn:active, .mn-save:active { transform: translate(2px, 2px); box-shadow: none; }
 .mn-save[data-state="dirty"] { color: var(--accent); font-weight: 600; }
 .mn-save[data-state="saving"] { color: var(--ink-3); }
+.mn-state { font-size: .78rem; color: var(--ink-3); white-space: nowrap; }
+.mn-state[data-state="dirty"] { color: var(--accent); }
 
 .mn-identity { display: inline-flex; }
 .mn-chip {
@@ -343,7 +345,7 @@ mark.mn-hl.hl-strike { background: transparent;
   var me = '';
   try { me = localStorage.getItem('mn-reviewer') || ''; } catch (e) {}
   var pendingAction = null;     // deferred create/reply, run once a name exists
-  var idWrap, themeBtn, saveBtn;
+  var idWrap, themeBtn, saveBtn, stateChip;
 
   // Any action that authors content routes through here: if no name is set yet,
   // the action is stored and the identity input is focused instead of a dialog.
@@ -700,6 +702,8 @@ mark.mn-hl.hl-strike { background: transparent;
   idWrap = document.createElement('div'); idWrap.className = 'mn-identity';
   var title = document.createElement('span'); title.className = 'mn-title grow'; title.textContent = DOC_NAME;
   saveBtn = document.createElement('button'); saveBtn.className = 'mn-save';
+  stateChip = document.createElement('span');
+  stateChip.className = 'mn-state'; stateChip.setAttribute('aria-live', 'polite');
   themeBtn = document.createElement('button'); themeBtn.className = 'mn-btn';
   var hr = document.createElement('label'); hr.className = 'mn-hr';
   var cb = document.createElement('input'); cb.type = 'checkbox';
@@ -709,6 +713,7 @@ mark.mn-hl.hl-strike { background: transparent;
   header.appendChild(idWrap);
   header.appendChild(title);
   header.appendChild(saveBtn);
+  header.appendChild(stateChip);
   header.appendChild(themeBtn);
   header.appendChild(hr);
 
@@ -748,8 +753,16 @@ mark.mn-hl.hl-strike { background: transparent;
   document.addEventListener('mn-dirty', autosave);
 
   function setSaveState(s) {
-    saveBtn.dataset.state = s;
-    saveBtn.textContent = s === 'saving' ? 'Saving…' : (s === 'dirty' ? '● Save' : 'Saved');
+    saveBtn.dataset.state = s; stateChip.dataset.state = s;
+    saveBtn.textContent = s === 'saving' ? 'Saving…' : 'Save';
+    // The wording carries the handoff semantics: localStorage protects THIS
+    // machine; only the file write travels with the document.
+    var fsa = !!window.showOpenFilePicker;
+    stateChip.textContent =
+      s === 'saving' ? 'Saving…'
+      : s === 'saved' ? 'In file'
+      : fsa ? 'Safe on this Mac — not yet in the file'
+      : 'Not saved';
     saveBtn.setAttribute('aria-label', s === 'dirty' ? 'Save (unsaved changes)' : (s === 'saving' ? 'Saving' : 'Saved'));
   }
   document.addEventListener('mn-dirty', function () { if (saveBtn.dataset.state !== 'saving') setSaveState('dirty'); });
