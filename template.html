@@ -693,7 +693,12 @@ mark.mn-hl.hl-strike { background: transparent;
 
   // --- dirty flag ---
   var dirty = false;
-  function markDirty() { dirty = true; document.dispatchEvent(new CustomEvent('mn-dirty')); }
+  // Tracks whether the CURRENT dirty state has actually landed in localStorage
+  // (not just whether the API exists to attempt it). A change is dirty-and-
+  // unautosaved from the instant it is made until autosave()'s setItem call
+  // returns; the chip must not claim "Safe on this Mac" before that happens.
+  var autosaved = false;
+  function markDirty() { dirty = true; autosaved = false; document.dispatchEvent(new CustomEvent('mn-dirty')); }
 
   window.MN = { state: state, paintHighlights: paintHighlights, renderRail: renderRail,
     isDirty: function () { return dirty; }, setClean: function () { dirty = false; }, me: function () { return me; } };
@@ -748,7 +753,17 @@ mark.mn-hl.hl-strike { background: transparent;
   function serialize() { return b64encode(JSON.stringify(state)); }
 
   function autosave() {
-    try { state.savedAt = new Date().toISOString(); localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+    try {
+      state.savedAt = new Date().toISOString();
+      localStorage.setItem(LS_KEY, JSON.stringify(state));
+      autosaved = true;
+    } catch (e) {
+      autosaved = false;
+    }
+    // Refresh the chip in place: private-browsing/quota-exceeded setItem
+    // failures must flip "Safe on this Mac" back to "Not saved" even though
+    // the save state itself is still just "dirty".
+    if (saveBtn.dataset.state === 'dirty') setSaveState('dirty');
   }
   document.addEventListener('mn-dirty', autosave);
 
@@ -756,12 +771,12 @@ mark.mn-hl.hl-strike { background: transparent;
     saveBtn.dataset.state = s; stateChip.dataset.state = s;
     saveBtn.textContent = s === 'saving' ? 'Saving…' : 'Save';
     // The wording carries the handoff semantics: localStorage protects THIS
-    // machine; only the file write travels with the document.
-    var fsa = !!window.showOpenFilePicker;
+    // machine only once the autosave write has actually landed; only the
+    // file write travels with the document.
     stateChip.textContent =
       s === 'saving' ? 'Saving…'
       : s === 'saved' ? 'In file'
-      : fsa ? 'Safe on this Mac — not yet in the file'
+      : autosaved ? 'Safe on this Mac — not yet in the file'
       : 'Not saved';
     saveBtn.setAttribute('aria-label', s === 'dirty' ? 'Save (unsaved changes)' : (s === 'saving' ? 'Saving' : 'Saved'));
   }
