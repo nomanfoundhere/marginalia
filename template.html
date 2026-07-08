@@ -970,39 +970,49 @@ mark.mn-hl.hl-strike { background: transparent;
     window.MN.setClean(); setSaveState('saved'); notesCorrupt = false;
   }
 
+  // Both panels above are non-blocking (Promise-based, not native confirm()), so
+  // without this flag a double-click or Save-click-plus-Cmd+S while one is open
+  // would invoke save() twice concurrently, stacking panels and racing the write.
+  var saveBusy = false;
   async function save() {
-    // The on-disk ledger could not be parsed at boot, so this state does not hold
-    // those notes; writing now replaces the unreadable-but-present notes with the
-    // current set. Confirm before that clobber so the original stays recoverable.
-    if (notesCorrupt) {
-      try { await showOverwritePanel(); }
-      catch (e) { setSaveState(window.MN.isDirty() ? 'dirty' : 'saved'); return; }
-    }
-    state.savedAt = new Date().toISOString();
-    var output = MarginCore.reconstructView(PRISTINE, serialize());
-    try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
-
-    if (window.showOpenFilePicker) {
-      setSaveState('saving');
-      try {
-        if (!fileHandle) {
-          var stored = await getStoredHandle();
-          if (stored && await verifyPermission(stored) && stored.name === SAVE_NAME) fileHandle = stored;
-        }
-        if (!fileHandle) {
-          if (!firstSaveExplained) { firstSaveExplained = true; await showFirstSaveExplainer(); }
-          if (!(await pickOwnFile())) throw { name: 'AbortError' };
-        }
-        var w = await fileHandle.createWritable(); await w.write(output); await w.close();
-        // The file on disk now holds a readable ledger, so drop the corrupt flag:
-        // later saves this session must not keep re-firing the overwrite confirm.
-        notesCorrupt = false; window.MN.setClean(); setSaveState('saved'); return;
-      } catch (e) {
-        if (e && e.name === 'AbortError') { setSaveState(window.MN.isDirty() ? 'dirty' : 'saved'); return; }
-        fileHandle = null;   // grant lost or write failed — fall through to download
+    if (saveBusy) return;
+    saveBusy = true;
+    try {
+      // The on-disk ledger could not be parsed at boot, so this state does not hold
+      // those notes; writing now replaces the unreadable-but-present notes with the
+      // current set. Confirm before that clobber so the original stays recoverable.
+      if (notesCorrupt) {
+        try { await showOverwritePanel(); }
+        catch (e) { setSaveState(window.MN.isDirty() ? 'dirty' : 'saved'); return; }
       }
+      state.savedAt = new Date().toISOString();
+      var output = MarginCore.reconstructView(PRISTINE, serialize());
+      try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
+
+      if (window.showOpenFilePicker) {
+        setSaveState('saving');
+        try {
+          if (!fileHandle) {
+            var stored = await getStoredHandle();
+            if (stored && await verifyPermission(stored) && stored.name === SAVE_NAME) fileHandle = stored;
+          }
+          if (!fileHandle) {
+            if (!firstSaveExplained) { firstSaveExplained = true; await showFirstSaveExplainer(); }
+            if (!(await pickOwnFile())) throw { name: 'AbortError' };
+          }
+          var w = await fileHandle.createWritable(); await w.write(output); await w.close();
+          // The file on disk now holds a readable ledger, so drop the corrupt flag:
+          // later saves this session must not keep re-firing the overwrite confirm.
+          notesCorrupt = false; window.MN.setClean(); setSaveState('saved'); return;
+        } catch (e) {
+          if (e && e.name === 'AbortError') { setSaveState(window.MN.isDirty() ? 'dirty' : 'saved'); return; }
+          fileHandle = null;   // grant lost or write failed — fall through to download
+        }
+      }
+      downloadFallback(output);
+    } finally {
+      saveBusy = false;
     }
-    downloadFallback(output);
   }
   saveBtn.addEventListener('click', save);
 
