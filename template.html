@@ -867,9 +867,22 @@ mark.mn-hl.hl-strike { background: transparent;
   async function pickOwnFile() {
     // Open-picker, not save-picker: selecting an existing file this way skips
     // the OS "Replace?" confirm that the save-picker adds.
-    var handles = await showOpenFilePicker({
+    var opts = {
       id: 'mn-view', types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }]
-    });
+    };
+    // The picker cannot be aimed at an arbitrary path (FSA privacy wall), but
+    // startIn accepts a stored handle — the picker then opens in the file's
+    // own folder — or a well-known directory name guessed from the path. The
+    // id's remembered directory still wins whenever the browser has one, so
+    // this only steers picks that would otherwise land in the default folder.
+    var stored = await getStoredHandle();
+    if (stored) {
+      opts.startIn = stored;
+    } else {
+      var wk = decodeURIComponent(location.pathname).match(/^\/Users\/[^/]+\/(Downloads|Desktop|Documents)\//);
+      if (wk) opts.startIn = wk[1].toLowerCase();
+    }
+    var handles = await showOpenFilePicker(opts);
     return armWithHandle(handles && handles[0]);
   }
   function showArmBar() {
