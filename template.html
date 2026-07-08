@@ -793,7 +793,9 @@ mark.mn-hl.hl-strike { background: transparent;
   }
   function removeArmBar() { if (armBar) { armBar.remove(); armBar = null; } }
   function armNotice(msg) {
-    if (armBar) { armBar.firstChild.textContent = msg; }
+    if (!armBar) showArmBar();
+    if (!armBar) return; // showArmBar declined (no FSA, or not file:) — nothing to say
+    armBar.firstChild.textContent = msg;
   }
   async function armWithHandle(handle) {
     if (!handle) return false;
