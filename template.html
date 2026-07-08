@@ -213,6 +213,15 @@ mark.mn-hl.hl-strike { background: transparent;
 /* Boot-time alert when the baked-in notes ledger is unreadable. Fixed red works
    in both themes: #fff on #b91c1c is ~5.9:1, clearing WCAG AA. */
 .mn-banner { padding: .6rem 1rem; background: #b91c1c; color: #fff; font-size: .85rem; line-height: 1.4; text-align: center; }
+/* save arming bar — the one-time gesture that lets the file write itself */
+.mn-armbar { display: flex; gap: .6rem; align-items: center; justify-content: center;
+  flex-wrap: wrap; padding: .45rem 1rem; font-size: .82rem; color: var(--ink-2);
+  background: var(--field); border-bottom: 1px solid var(--line); }
+.mn-armbar code { font-family: ui-monospace, monospace; color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
+  padding: .05em .3em; }
+.mn-armbar .mn-btn { font-size: .78rem; padding: .2rem .55rem; }
+.mn-armbar.mn-drag { outline: 2px dashed var(--accent); outline-offset: -3px; }
 </style>
 </head>
 <body>
@@ -777,6 +786,86 @@ mark.mn-hl.hl-strike { background: transparent;
       .catch(function () { return false; });
   }
 
+  // --- arming: acquiring a writable handle to this very file ---
+  var armBar = null;
+  function ownPath() {
+    try { return decodeURIComponent(location.pathname); } catch (e) { return location.pathname; }
+  }
+  function removeArmBar() { if (armBar) { armBar.remove(); armBar = null; } }
+  function armNotice(msg) {
+    if (armBar) { armBar.firstChild.textContent = msg; }
+  }
+  async function armWithHandle(handle) {
+    if (!handle) return false;
+    if (handle.name !== SAVE_NAME) {
+      armNotice('That is a different file (' + handle.name + '). Drop ' + SAVE_NAME + '.');
+      return false;
+    }
+    if (!(await verifyPermission(handle))) {
+      armNotice('Write permission was not granted.');
+      return false;
+    }
+    fileHandle = handle;
+    await storeHandle(handle);
+    removeArmBar();
+    return true;
+  }
+  async function pickOwnFile() {
+    // Open-picker, not save-picker: selecting an existing file this way skips
+    // the OS "Replace?" confirm that the save-picker adds.
+    var handles = await showOpenFilePicker({
+      id: 'mn-view', types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }]
+    });
+    return armWithHandle(handles && handles[0]);
+  }
+  function showArmBar() {
+    if (armBar || !window.showOpenFilePicker || location.protocol !== 'file:') return;
+    armBar = document.createElement('div'); armBar.className = 'mn-armbar';
+    var msg = document.createElement('span');
+    msg.appendChild(document.createTextNode('To let this file save itself, drag it from Finder onto this window — it lives at '));
+    var c = document.createElement('code'); c.textContent = ownPath();
+    msg.appendChild(c); msg.appendChild(document.createTextNode(' — or '));
+    armBar.appendChild(msg);
+    var pick = document.createElement('button'); pick.className = 'mn-btn';
+    pick.textContent = 'choose it once';
+    pick.addEventListener('click', function () { pickOwnFile().catch(function () {}); });
+    var dismiss = document.createElement('button'); dismiss.className = 'mn-icon';
+    dismiss.textContent = '×'; dismiss.setAttribute('aria-label', 'Dismiss');
+    dismiss.addEventListener('click', removeArmBar);
+    armBar.appendChild(pick); armBar.appendChild(dismiss);
+    // Above the sticky header, same slot the corrupt-data banner uses.
+    document.body.insertBefore(armBar, header);
+  }
+  window.addEventListener('dragover', function (e) {
+    e.preventDefault();
+    if (armBar) armBar.classList.add('mn-drag');
+  });
+  window.addEventListener('dragleave', function () {
+    if (armBar) armBar.classList.remove('mn-drag');
+  });
+  window.addEventListener('drop', function (e) {
+    e.preventDefault();
+    if (armBar) armBar.classList.remove('mn-drag');
+    var item = e.dataTransfer && e.dataTransfer.items && e.dataTransfer.items[0];
+    if (!item || item.kind !== 'file' || !item.getAsFileSystemHandle) return;
+    item.getAsFileSystemHandle().then(armWithHandle).catch(function () {});
+  });
+  // Offer arming up front, not at the first save: silently reuse a stored
+  // grant when the browser kept it, otherwise show the bar.
+  (function () {
+    if (!window.showOpenFilePicker) return;
+    getStoredHandle().then(function (stored) {
+      if (!stored) { showArmBar(); return; }
+      Promise.resolve()
+        .then(function () { return stored.queryPermission ? stored.queryPermission({ mode: 'readwrite' }) : 'prompt'; })
+        .then(function (p) {
+          if (p === 'granted') { fileHandle = stored; }
+          else { showArmBar(); }
+        })
+        .catch(showArmBar);
+    });
+  })();
+
   // The first save names the exact file to choose, once. The Continue button is
   // itself the user gesture that opens the OS picker (so activation survives).
   var firstSaveExplained = false;
@@ -785,10 +874,10 @@ mark.mn-hl.hl-strike { background: transparent;
       var panel = document.createElement('div'); panel.className = 'mn-explainer';
       var h = document.createElement('h3'); h.textContent = 'Save this review once';
       var p = document.createElement('p'); p.style.margin = '0';
-      p.appendChild(document.createTextNode('Your browser will ask which file to write. Choose '));
-      var codeEl = document.createElement('code'); codeEl.textContent = SAVE_NAME;
+      p.appendChild(document.createTextNode('Your browser will ask which file to write. Pick '));
+      var codeEl = document.createElement('code'); codeEl.textContent = ownPath();
       p.appendChild(codeEl);
-      p.appendChild(document.createTextNode(' — the file you are viewing — and confirm overwrite. After this once, saving is a single click.'));
+      p.appendChild(document.createTextNode(' — the file you are reading right now. After this once, saving is a single click.'));
       var row = document.createElement('div'); row.className = 'row';
       var ok = document.createElement('button'); ok.className = 'mn-save'; ok.textContent = 'Choose file & save';
       var cancel = document.createElement('button'); cancel.className = 'mn-btn'; cancel.textContent = 'Not now';
@@ -818,20 +907,16 @@ mark.mn-hl.hl-strike { background: transparent;
     var output = MarginCore.reconstructView(PRISTINE, serialize());
     try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) {}
 
-    if (window.showSaveFilePicker) {
+    if (window.showOpenFilePicker) {
       setSaveState('saving');
       try {
         if (!fileHandle) {
           var stored = await getStoredHandle();
-          if (stored && await verifyPermission(stored)) fileHandle = stored;
+          if (stored && await verifyPermission(stored) && stored.name === SAVE_NAME) fileHandle = stored;
         }
         if (!fileHandle) {
           if (!firstSaveExplained) { firstSaveExplained = true; await showFirstSaveExplainer(); }
-          fileHandle = await showSaveFilePicker({
-            suggestedName: SAVE_NAME, id: 'mn-view',
-            types: [{ description: 'HTML', accept: { 'text/html': ['.html'] } }]
-          });
-          await storeHandle(fileHandle);
+          if (!(await pickOwnFile())) throw { name: 'AbortError' };
         }
         var w = await fileHandle.createWritable(); await w.write(output); await w.close();
         // The file on disk now holds a readable ledger, so drop the corrupt flag:
