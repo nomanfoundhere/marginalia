@@ -1,11 +1,16 @@
 #!/usr/bin/env python3
 """Assemble <doc>-view.html from template.html + marked + margin-core + source."""
 import base64, os, pathlib, re, sys
+import importlib.util, json
+_spec = importlib.util.spec_from_file_location(
+    "margin_anchor", pathlib.Path(__file__).resolve().parent / "margin_anchor.py")
+margin_anchor = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(margin_anchor)
 
 TEMPLATE = "template.html"
 MARKED = "vendor/marked.min.js"
 CORE = "margin-core.js"
-EMPTY_NOTES = '{"schemaVersion":1,"notes":[]}'
+EMPTY_NOTES = '{"schemaVersion":2,"notes":[]}'
 
 NOTES_RE = re.compile(
     r'(<script id="margin-notes" type="text/plain">)(.*?)(</script>)', re.DOTALL)
@@ -29,6 +34,22 @@ def _existing_notes_payload(out_path: pathlib.Path) -> str:
             return m.group(2).strip()
     return _b64(EMPTY_NOTES)
 
+def _stamp_src_checks(notes_b64: str, new_source: str) -> str:
+    """Revision semantics: a carried-forward note whose quote no longer appears
+    in the new source is the workflow's most informative signal (its span was
+    probably revised in response). Stamp, do not drop. A payload that fails to
+    decode is returned untouched — the viewer's boot guard owns corruption."""
+    try:
+        data = json.loads(base64.b64decode(notes_b64).decode("utf-8"))
+        notes = data["notes"]
+        for n in notes:
+            found = margin_anchor.locate_in_source(new_source, n.get("anchor") or {})
+            n["srcCheck"] = "found" if found else "missing"
+        data["schemaVersion"] = 2
+        return _b64(json.dumps(data, ensure_ascii=False))
+    except Exception:
+        return notes_b64
+
 def build(doc_md_path: str, base_dir: str) -> str:
     base = pathlib.Path(base_dir)
     template = (base / TEMPLATE).read_text(encoding="utf-8")
@@ -39,6 +60,7 @@ def build(doc_md_path: str, base_dir: str) -> str:
     source_md = doc.read_text(encoding="utf-8")
     out_path = doc.with_name(doc.stem + "-view.html")
     notes_payload = _existing_notes_payload(out_path)
+    notes_payload = _stamp_src_checks(notes_payload, source_md)
 
     out = template
     out = out.replace("/*MARGIN_MARKED*/", _inline_js(marked))
