@@ -1,6 +1,6 @@
 ---
 name: margin-send
-description: Bake a Markdown file into a self-contained annotation view and open it in Helium for span-level review. Use when the author wants a reviewer to leave precise margin notes on a plan or writeup.
+description: Bake a Markdown file into a self-contained annotation view and open it in Helium for priority-based review of a plan, writeup, or ordinary text output.
 ---
 
 # margin-send
@@ -15,10 +15,11 @@ Turn `<doc>.md` into `<doc>-view.html` and open it for review.
      appears show as "text changed" in the viewer — the usual sign the span
      was revised in response.
 3. Open it: `open -a Helium <printed-path>`
-4. Tell the user: select text, then pick Question (yellow), Looks good (green),
-   Needs work (pink), underline, strike, or Comment (keys: H/U/S/C). Clicking an
-   existing mark opens controls for commenting on that same span. To enable
-   in-place saving, drag the file from Finder onto its own window once; after
-   that saving is one click.
+4. Tell the user: select text, then choose Critical, Important, Refinement, or
+   Strike. Priority creates a note draft and applies the red, amber, or blue
+   source highlight; Strike records a direct deletion. Keys `1`, `2`, `3`, and
+   `X` do the same without reaching for the toolbar. Clicking a note span opens
+   its focused discussion. To enable in-place saving, drag the file from Finder
+   onto its own window once; after that saving is one click.
 
 Do not edit `<doc>.md` here. This skill only produces and opens the view.

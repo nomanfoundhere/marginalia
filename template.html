@@ -28,8 +28,8 @@ html[data-theme="light"] {
   --shadow:      0 16px 36px rgba(31, 43, 66, .10);
   --shadow-card: 0 4px 14px rgba(31, 43, 66, .08);
   --shadow-btn:  0 1px 2px rgba(31, 43, 66, .12);
-  --hl-yellow: #fde68a; --hl-green: #bbf7d0; --hl-pink: #fbcfe8;
-  --question: #b77908; --approved: #27855b; --needs-work: #c24f70;
+  --critical: #c6465d; --important: #b77908; --refinement: #356bc8; --delete: #7b8799;
+  --hl-critical: #f8c7d0; --hl-important: #fde68a; --hl-refinement: #c9dbff; --hl-delete: #dce2eb;
 }
 html[data-theme="dark"] {
   --desk: #161a22; --panel: #202631;
@@ -39,8 +39,8 @@ html[data-theme="dark"] {
   --shadow:      0 16px 36px rgba(0, 0, 0, .28);
   --shadow-card: 0 4px 14px rgba(0, 0, 0, .22);
   --shadow-btn:  0 1px 2px rgba(0, 0, 0, .30);
-  --hl-yellow: #6d5a12; --hl-green: #1c5636; --hl-pink: #6b2a50;
-  --question: #f0c44d; --approved: #65c591; --needs-work: #f184a2;
+  --critical: #ff8fa1; --important: #f0c44d; --refinement: #8cafef; --delete: #a8b3c5;
+  --hl-critical: #622b39; --hl-important: #6d5a12; --hl-refinement: #2b426d; --hl-delete: #394453;
 }
 
 :root { --rail: clamp(19rem, 25vw, 23rem); }
@@ -105,7 +105,7 @@ body {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: var(--shadow); padding: clamp(1.6rem, 4vw, 3rem) clamp(1.25rem, 4vw, 3rem);
   min-width: 0;
-  font: 17px/1.72 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  font: 16px/1.7 -apple-system, "Segoe UI", system-ui, sans-serif;
 }
 #margin-doc h1, #margin-doc h2, #margin-doc h3 {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
@@ -130,32 +130,46 @@ mark.mn-hl {
   text-underline-offset: 2px;
 }
 
-#margin-rail { position: relative; min-height: 1px; }
-#margin-rail.anchored .mn-card { position: absolute; left: 0; right: 0; }
-#margin-rail:not(.anchored) .mn-card { margin-bottom: 1rem; }
+#margin-rail { min-width: 0; }
+.mn-rail-controls { position: sticky; top: 4.2rem; z-index: 4; padding: .25rem 0 .75rem; background: var(--desk); }
+.mn-rail-label { display: flex; align-items: center; justify-content: space-between; margin: 0 0 .45rem;
+  color: var(--ink-3); font: 700 .68rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .09em; text-transform: uppercase; }
+.mn-tabs { display: flex; gap: .3rem; overflow-x: auto; padding-bottom: .15rem; }
+.mn-tab { flex: 0 0 auto; border: 1px solid transparent; border-radius: 5px; padding: .35rem .45rem;
+  background: transparent; color: var(--ink-3); cursor: pointer; font: 650 .72rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.mn-tab:hover { color: var(--ink); background: var(--field); }
+.mn-tab[aria-selected="true"] { color: var(--ink); border-color: var(--line-2); background: var(--panel); }
+.mn-tab[data-filter="critical"][aria-selected="true"] { color: var(--critical); border-color: var(--critical); }
+.mn-tab[data-filter="important"][aria-selected="true"] { color: var(--important); border-color: var(--important); }
+.mn-tab[data-filter="refinement"][aria-selected="true"] { color: var(--refinement); border-color: var(--refinement); }
+.mn-tab[data-filter="deletions"][aria-selected="true"] { color: var(--delete); border-color: var(--delete); }
+.mn-rail-list { position: relative; min-height: 1px; }
+#margin-rail.anchored .mn-rail-list .mn-card { position: absolute; left: 0; right: 0; }
+#margin-rail:not(.anchored) .mn-card { margin-bottom: .8rem; }
 
 .mn-empty { color: var(--ink-3); font-size: .9rem; padding: 1rem .2rem; }
 
-/* --- note card --- */
+/* --- margin ledger: rows remain quiet until one conversation is opened --- */
 .mn-card {
   --card-accent: var(--accent);
-  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--card-accent);
-  border-radius: 8px; box-shadow: var(--shadow-card); padding: .8rem .9rem .85rem;
-  transition: top .12s ease, border-color .12s ease, box-shadow .12s ease;
+  background: transparent; border: 0; border-left: 2px solid var(--card-accent);
+  border-radius: 0; box-shadow: none; padding: .15rem 0 .45rem .75rem;
+  transition: top .12s ease, border-color .12s ease, background-color .12s ease;
 }
-.mn-card[data-kind="comment"] { --card-accent: var(--accent); }
-.mn-card[data-intent="question"] { --card-accent: var(--question); }
-.mn-card[data-intent="approved"] { --card-accent: var(--approved); }
-.mn-card[data-intent="needs-work"] { --card-accent: var(--needs-work); }
-.mn-card[data-kind="underline"], .mn-card[data-kind="strike"] { --card-accent: var(--ink-3); }
-.mn-card.resolved { opacity: .6; }
-.mn-card.unanchored { border-style: dashed; }
-.mn-card.changed { border-style: dotted; }
-.mn-card.changed .mn-badge { background: var(--accent); }
-.mn-card.draft { border-color: var(--accent); }
-.mn-card.draft .mn-badge { background: var(--accent); }
+.mn-card[data-priority="critical"] { --card-accent: var(--critical); }
+.mn-card[data-priority="important"] { --card-accent: var(--important); }
+.mn-card[data-priority="refinement"] { --card-accent: var(--refinement); }
+.mn-card[data-kind="strike"] { --card-accent: var(--delete); }
+.mn-card.resolved { opacity: .56; }
+.mn-card.unanchored { border-left-style: dashed; }
+.mn-card.changed { border-left-style: dotted; }
+.mn-card.active { background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--card-accent);
+  border-radius: 8px; box-shadow: var(--shadow-card); padding: .9rem; }
+.mn-card.draft { border-color: var(--card-accent); }
 
-.mn-card-head { display: flex; align-items: center; gap: .45rem; margin-bottom: .7rem; min-height: 1.25rem; }
+.mn-card-head { display: flex; align-items: center; gap: .45rem; min-height: 1.25rem; }
+.mn-card.active .mn-card-head { margin-bottom: .7rem; }
 .mn-id { font: 650 .68rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; }
 .mn-badge { font: .68rem/1 ui-monospace, monospace; color: #fff;
@@ -166,18 +180,23 @@ mark.mn-hl {
 .mn-icon:hover { color: var(--ink); background: var(--field); border-color: var(--line); }
 .mn-quote { color: var(--ink-2); background: var(--field); border-left: 2px solid var(--card-accent);
   border-radius: 0 5px 5px 0; padding: .45rem .6rem; margin: 0 0 .8rem;
-  font: .83rem/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+  font: .83rem/1.45 -apple-system, "Segoe UI", system-ui, sans-serif; }
 .mn-quote-kicker { display: block; margin-bottom: .18rem; color: var(--ink-3);
   font: 650 .63rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing: .08em; text-transform: uppercase; }
-.mn-card.mark { padding: .7rem .8rem; }
-.mn-card.mark .mn-quote { margin: 0; }
-.mn-kind { width: 12px; height: 12px; border-radius: 3px; flex: none;
-  border: 1px solid var(--line-2); }
+.mn-row-summary { overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+  color: var(--ink-2); font-size: .84rem; line-height: 1.35; }
+.mn-row-quote { display: block; overflow: hidden; margin: .25rem 0 .3rem; color: var(--ink-3);
+  text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; }
+.mn-card.active .mn-row-summary, .mn-card.active .mn-row-quote { display: none; }
+.mn-priority { color: var(--card-accent); }
 .mn-card-foot { display: flex; justify-content: flex-end; gap: .4rem;
   margin-top: .8rem; padding-top: .65rem; border-top: 1px solid var(--line); }
 .mn-resolve-action { color: var(--ink-2); font-size: .78rem; box-shadow: none; }
 .mn-thread-toggle { margin-left: 36px; align-self: flex-start; }
+.mn-open-note { margin-left: auto; color: var(--ink-3); }
+.mn-card.active .mn-open-note { display: none; }
+.mn-reattach { color: var(--card-accent); font-size: .78rem; }
 
 /* conversation: continuous connector line behind the avatars */
 .mn-conv { position: relative; display: flex; flex-direction: column; gap: .85rem; }
@@ -219,12 +238,11 @@ mark.mn-hl {
 .mn-tool:hover { border-color: var(--line-2); background: var(--field); }
 .mn-tool-dot { width: 16px; height: 16px; padding: 0; border-radius: 50%;
   border: 1px solid var(--line-2); }
-mark.mn-hl.hl-yellow { background: var(--hl-yellow); text-decoration: none; }
-mark.mn-hl.hl-green  { background: var(--hl-green);  text-decoration: none; }
-mark.mn-hl.hl-pink   { background: var(--hl-pink);   text-decoration: none; }
-mark.mn-hl.hl-under  { background: transparent; }
-mark.mn-hl.hl-strike { background: transparent;
-  text-decoration-line: line-through; }
+mark.mn-hl.hl-critical { background: var(--hl-critical); text-decoration: none; }
+mark.mn-hl.hl-important { background: var(--hl-important); text-decoration: none; }
+mark.mn-hl.hl-refinement { background: var(--hl-refinement); text-decoration: none; }
+mark.mn-hl.hl-strike { background: var(--hl-delete); text-decoration-line: line-through; }
+mark.mn-hl.is-muted { opacity: .28; }
 
 /* first-save explainer — an inline panel, never a browser modal */
 .mn-explainer { position: fixed; top: 60px; right: 1.5rem; z-index: 50;
@@ -302,26 +320,27 @@ mark.mn-hl.hl-strike { background: transparent;
     return btoa(String.fromCharCode.apply(null, new TextEncoder().encode(str)));
   }
 
-  var MARK_COLORS = ['yellow', 'green', 'pink'];
-  var MARK_INTENTS = {
-    yellow: { tag: 'question', label: 'Question' },
-    green: { tag: 'approved', label: 'Looks good' },
-    pink: { tag: 'needs-work', label: 'Needs work' }
+  var PRIORITIES = ['critical', 'important', 'refinement'];
+  var PRIORITY_META = {
+    critical: { label: 'Critical', action: 'Must fix' },
+    important: { label: 'Important', action: 'Fix next' },
+    refinement: { label: 'Refinement', action: 'Polish later' }
   };
-  function markIntentForColor(color) {
-    return MARK_INTENTS[color] || { tag: 'highlight', label: 'Highlight' };
+  function priorityMeta(priority) { return PRIORITY_META[priority] || PRIORITY_META.important; }
+  function priorityFromLegacy(n) {
+    if (n.intent === 'needs-work' || n.color === 'pink') return 'critical';
+    if (n.intent === 'approved' || n.color === 'green') return 'refinement';
+    return 'important';
   }
-  function markLabel(n) {
-    if (n.kind === 'highlight') return markIntentForColor(n.color || 'yellow').label;
-    if (n.kind === 'underline') return 'Underline';
-    if (n.kind === 'strike') return 'Strike';
-    return 'Comment';
+  function noteLabel(n) {
+    if (n.kind === 'strike') return 'Delete';
+    return priorityMeta(n.priority).label;
   }
-  function normalizeMarkSemantics(n) {
-    if (n.kind !== 'highlight') return;
-    if (!n.color) n.color = 'yellow';
-    n.intent = markIntentForColor(n.color).tag;
+  function randomId(prefix) {
+    if (globalThis.crypto && globalThis.crypto.randomUUID) return prefix + '-' + globalThis.crypto.randomUUID();
+    return prefix + '-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
   }
+  function touchNote(n) { n.updatedAt = new Date().toISOString(); }
 
   // --- state ---
   // Same failure class as the notes block below: a corrupt source payload would
@@ -353,13 +372,24 @@ mark.mn-hl.hl-strike { background: transparent;
     // intact. Treat it like an undecodable ledger: reset and flag, so the banner
     // and the save-time overwrite guard fire, rather than the forEach below
     // throwing and aborting boot to a blank page, or the notes silently vanishing.
-    if (state.notes && !Array.isArray(state.notes)) { state.notes = []; notesCorrupt = true; }
+    if (state.notes && (!Array.isArray(state.notes) || state.notes.some(function (n) {
+      return !n || typeof n !== 'object' || Array.isArray(n);
+    }))) { state.notes = []; notesCorrupt = true; }
     if (!state.notes) state.notes = [];
     state.schemaVersion = 2;
-    // v1 ledgers predate kinds; every reader from here on can rely on n.kind.
+    // v1 ledgers predate priorities. Legacy standalone marks are retained as
+    // priority notes, while new annotations use only comment or strike.
     state.notes.forEach(function (n) {
+      if (n.kind === 'highlight' || n.kind === 'underline') {
+        n.kind = 'comment';
+        if (!n.priority) n.priority = priorityFromLegacy(n);
+      }
       if (!n.kind) n.kind = 'comment';
-      normalizeMarkSemantics(n);
+      if (n.kind !== 'strike' && !n.priority) n.priority = 'important';
+      if (!Array.isArray(n.thread)) n.thread = [];
+      n.thread.forEach(function (entry, i) {
+        if (!entry.id) entry.id = n.id + '-legacy-' + i;
+      });
     });
   }
   normalizeState();
@@ -500,8 +530,7 @@ mark.mn-hl.hl-strike { background: transparent;
     return { start: startFlat, quote: sel.toString() };
   }
 
-  // --- selection toolbar: three highlight colors, underline, strike, comment ---
-  var lastColor = 'yellow';
+  // --- selection toolbar: priority note or explicit deletion ---
   var tools = document.createElement('div');
   tools.className = 'mn-tools'; tools.hidden = true;
   tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Annotate selection');
@@ -539,16 +568,21 @@ mark.mn-hl.hl-strike { background: transparent;
       fn(anchor);
     });
   }
-  MARK_COLORS.forEach(function (c) {
-    var intent = markIntentForColor(c);
-    var b = toolBtn('', intent.label + ' highlight', 'mn-tool-dot');
-    b.style.background = 'var(--hl-' + c + ')';
-    b.title = intent.label + ' highlight (H uses the last highlight color)';
-    wireTool(b, function (anchor) { lastColor = c; createMark(anchor, 'highlight', c); });
+  PRIORITIES.forEach(function (priority) {
+    var meta = priorityMeta(priority);
+    var b = toolBtn(meta.label, meta.label + ' note');
+    b.classList.add('mn-priority'); b.style.color = 'var(--' + priority + ')';
+    wireTool(b, function (anchor) { createNote(anchor, priority); });
   });
-  wireTool(toolBtn('<u>U</u>', 'Underline (U)'), function (anchor) { createMark(anchor, 'underline'); });
-  wireTool(toolBtn('<s>S</s>', 'Strike through (S)'), function (anchor) { createMark(anchor, 'strike'); });
-  wireTool(toolBtn('Comment', 'Leave a comment on the selected text (C)'), createNote);
+  wireTool(toolBtn('<s>Strike</s>', 'Mark this text for deletion'), function (anchor) { createStrike(anchor); });
+  var reattachBtn = toolBtn('Reattach', 'Attach the active changed note to this selection');
+  reattachBtn.hidden = true;
+  wireTool(reattachBtn, function (anchor) {
+    var n = noteById(activeNoteId);
+    if (!n) return;
+    n.anchor = anchor; n.srcCheck = 'found'; touchNote(n);
+    paintHighlights(); renderRail(); markDirty();
+  });
 
   document.addEventListener('selectionchange', function () {
     var sel = document.getSelection();
@@ -556,41 +590,42 @@ mark.mn-hl.hl-strike { background: transparent;
     hideMarkTools();
     var rect = sel.getRangeAt(0).getBoundingClientRect();
     if (!rect.width) { hideTools(); return; }
+    var active = noteById(activeNoteId);
+    reattachBtn.hidden = !(active && (active._located < 0 || active.srcCheck === 'missing'));
     tools.style.left = (window.scrollX + rect.left) + 'px';
     tools.style.top = (window.scrollY + rect.top) + 'px';
     tools.hidden = false;
   });
 
-  function createNote(anchor) {
+  function createNote(anchor, priority) {
     var author = currentAuthor();
-    var existing = matchingMarkedNote(anchor);
+    var existing = matchingNote(anchor);
     if (existing) {
       openDraftForNote(existing);
       return;
     }
-    var id = 'n' + (++seq);
-    var note = { id: id, author: author, kind: 'comment', color: colorFor(author), created: new Date().toISOString(),
-      anchor: anchor, thread: [draftEntry(author)], resolved: false };
+    var now = new Date().toISOString();
+    var id = randomId('n');
+    var note = { id: id, author: author, kind: 'comment', priority: priority || 'important',
+      created: now, updatedAt: now, anchor: anchor, thread: [draftEntry(author)], resolved: false };
     state.notes.push(note);
+    activeNoteId = id;
     paintHighlights(); renderRail(); markDirty();
     focusDraft(id, 0);
   }
 
-  function createMark(anchor, kind, color) {
-    var note = { id: 'n' + (++seq), author: currentAuthor(), kind: kind,
-      created: new Date().toISOString(), anchor: anchor, thread: [], resolved: false };
-    if (kind === 'highlight') {
-      note.color = color || lastColor || 'yellow';
-      note.intent = markIntentForColor(note.color).tag;
-    } else if (color) {
-      note.color = color;
-    }
+  function createStrike(anchor) {
+    var existing = matchingNote(anchor);
+    if (existing && existing.kind === 'strike') { removeNote(existing); return; }
+    var now = new Date().toISOString();
+    var note = { id: randomId('n'), author: currentAuthor(), kind: 'strike',
+      created: now, updatedAt: now, anchor: anchor, thread: [], resolved: false };
     state.notes.push(note);
     paintHighlights(); renderRail(); markDirty();
   }
 
   function draftEntry(author) {
-    return { author: author, ts: new Date().toISOString(), body: '', draft: true };
+    return { id: randomId('e'), author: author, ts: new Date().toISOString(), body: '', draft: true };
   }
   function hasDraft(n) {
     return (n.thread || []).some(function (e) { return e.draft; });
@@ -603,7 +638,7 @@ mark.mn-hl.hl-strike { background: transparent;
     for (var i = 0; i < n.thread.length; i++) {
       if (n.thread[i].draft && isMine(n.thread[i].author)) return i;
     }
-    n.thread.push(draftEntry(author));
+    n.thread.push(draftEntry(author)); touchNote(n);
     return n.thread.length - 1;
   }
   function focusDraft(id, index) {
@@ -612,14 +647,15 @@ mark.mn-hl.hl-strike { background: transparent;
   }
   function openDraftForNote(n) {
     var draftIndex = ensureDraft(n, currentAuthor());
+    activeNoteId = n.id;
     paintHighlights(); renderRail(); markDirty(); focusDraft(n.id, draftIndex);
   }
-  function matchingMarkedNote(anchor) {
+  function matchingNote(anchor) {
     var idx = globalThis.MarginCore.locateAnchor(flatText(), anchor);
     if (idx < 0) return null;
     for (var i = 0; i < state.notes.length; i++) {
       var n = state.notes[i];
-      if (n.resolved || n.kind === 'comment' || !n.anchor) continue;
+      if (n.resolved || !n.anchor) continue;
       if (n._located === idx && n.anchor.quote && n.anchor.quote.length === anchor.quote.length) return n;
     }
     return null;
@@ -631,6 +667,7 @@ mark.mn-hl.hl-strike { background: transparent;
   function removeNote(n) {
     var index = state.notes.indexOf(n);
     state.notes = state.notes.filter(function (x) { return x !== n; });
+    if (activeNoteId === n.id) activeNoteId = null;
     hideMarkTools();
     paintHighlights(); renderRail(); markDirty();
     showUndoToast(n, index);
@@ -648,25 +685,22 @@ mark.mn-hl.hl-strike { background: transparent;
     hideTools();
     markTools.innerHTML = '';
     var label = document.createElement('span'); label.className = 'mn-mark-label';
-    label.textContent = markLabel(n);
+    label.textContent = noteLabel(n);
     markTools.appendChild(label);
-    markToolButton('Comment', 'Comment on this mark').addEventListener('click', function () {
-      hideMarkTools(); openDraftForNote(n);
-    });
-    if (n.kind === 'highlight') {
-      MARK_COLORS.forEach(function (c) {
-        var intent = markIntentForColor(c);
-        var b = markToolButton('', intent.label, 'mn-tool-dot');
-        b.style.background = 'var(--hl-' + c + ')';
-        if ((n.color || 'yellow') === c) b.style.borderColor = 'var(--accent)';
+    if (n.kind === 'strike') {
+      markToolButton('Undo deletion', 'Undo this deletion').addEventListener('click', function () { removeNote(n); });
+    } else {
+      markToolButton('Open note', 'Open this note').addEventListener('click', function () {
+        hideMarkTools(); activeNoteId = n.id; renderRail();
+      });
+      PRIORITIES.forEach(function (priority) {
+        var meta = priorityMeta(priority);
+        var b = markToolButton(meta.label, 'Set ' + meta.label + ' priority');
+        b.style.color = 'var(--' + priority + ')';
         b.addEventListener('click', function () {
-          n.color = c; normalizeMarkSemantics(n); lastColor = c;
-          hideMarkTools(); paintHighlights(); renderRail(); markDirty();
+          n.priority = priority; touchNote(n); hideMarkTools(); paintHighlights(); renderRail(); markDirty();
         });
       });
-    }
-    if (!hasPostedThread(n) && !hasDraft(n)) {
-      markToolButton('Remove', 'Remove this mark').addEventListener('click', function () { removeNote(n); });
     }
     var rect = mk.getBoundingClientRect();
     markTools.hidden = false;
@@ -701,32 +735,32 @@ mark.mn-hl.hl-strike { background: transparent;
       var range = rangeFromFlat(idx, n.anchor.quote.length);
       if (!range) return;
       var mk = document.createElement('mark'); mk.className = 'mn-hl'; mk.dataset.note = n.id;
-      mk.tabIndex = 0; mk.title = markLabel(n) + ': click to comment or edit';
-      if (n.kind === 'highlight') {
-        mk.classList.add('hl-' + (n.color || 'yellow'));
-      } else if (n.kind === 'underline' || n.kind === 'strike') {
-        mk.classList.add(n.kind === 'strike' ? 'hl-strike' : 'hl-under');
-        mk.style.textDecorationColor = colorFor(n.author);
-      } else {
-        mk.style.backgroundColor = tintFor(n.author);
-        mk.style.textDecorationColor = colorFor(n.author);
-      }
+      mk.tabIndex = 0; mk.title = noteLabel(n) + ': click to open';
+      mk.classList.add(n.kind === 'strike' ? 'hl-strike' : 'hl-' + n.priority);
+      if (activeFilter !== 'all' && activeFilter !== 'deletions' && n.priority !== activeFilter) mk.classList.add('is-muted');
+      if (activeFilter === 'deletions' && n.kind !== 'strike') mk.classList.add('is-muted');
       try { range.surroundContents(mk); } catch (e) { /* spans element boundary: skip paint, note still listed */ }
     });
   }
 
-  // --- threaded rail ---
+  // --- margin ledger: compact rows by default, one focused discussion on demand ---
   var hideResolved = false;
+  var activeFilter = 'all';
+  var activeNoteId = null;
   var editing = {};
   var expandedThreads = {};
 
-  function noteLabel(id) {
-    var n = parseInt(String(id || '').replace(/\D/g, ''), 10);
-    return isNaN(n) ? 'Note ' + id : 'Note ' + n;
-  }
   function itemLabel(n) {
-    var base = noteLabel(n.id).replace(/^Note/, (n.kind === 'comment' || hasPostedThread(n) || hasDraft(n)) ? 'Comment' : 'Mark');
-    return base;
+    var ordinal = state.notes.indexOf(n) + 1;
+    return n.kind === 'strike' ? 'Deletion ' + ordinal : 'Comment ' + ordinal;
+  }
+  function filterMatches(n, filter) {
+    if (filter === 'all') return true;
+    if (filter === 'deletions') return n.kind === 'strike';
+    return n.kind !== 'strike' && n.priority === filter;
+  }
+  function filterCount(filter) {
+    return state.notes.filter(function (n) { return !n.resolved && filterMatches(n, filter); }).length;
   }
 
   function messageRow(n, entry, index) {
@@ -761,7 +795,7 @@ mark.mn-hl.hl-strike { background: transparent;
       primary.setAttribute('aria-label', primary.textContent + ' for ' + itemLabel(n));
       primary.addEventListener('click', function () {
         var text = ta.value.trim(); if (!text) { ta.focus(); return; }
-        entry.body = text; entry.ts = new Date().toISOString(); delete entry.draft; delete editing[key];
+        entry.body = text; entry.ts = new Date().toISOString(); touchNote(n); delete entry.draft; delete editing[key];
         renderRail(); markDirty();
       });
       var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'mn-btn';
@@ -793,35 +827,52 @@ mark.mn-hl.hl-strike { background: transparent;
 
   function renderRail() {
     rail.innerHTML = '';
-    var shown = state.notes.filter(function (n) { return !(n.resolved && hideResolved); });
+    var controls = document.createElement('div'); controls.className = 'mn-rail-controls';
+    var label = document.createElement('div'); label.className = 'mn-rail-label';
+    label.textContent = 'Review queue';
+    controls.appendChild(label);
+    var tabs = document.createElement('div'); tabs.className = 'mn-tabs'; tabs.setAttribute('role', 'tablist');
+    [
+      ['all', 'All'], ['critical', 'Critical'], ['important', 'Important'],
+      ['refinement', 'Refinements'], ['deletions', 'Deletions']
+    ].forEach(function (pair) {
+      var tab = document.createElement('button'); tab.type = 'button'; tab.className = 'mn-tab';
+      tab.dataset.filter = pair[0]; tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-selected', String(activeFilter === pair[0]));
+      tab.textContent = pair[1] + ' ' + filterCount(pair[0]);
+      tab.addEventListener('click', function () {
+        activeFilter = pair[0];
+        var active = noteById(activeNoteId);
+        if (active && !filterMatches(active, activeFilter)) activeNoteId = null;
+        paintHighlights(); renderRail();
+      });
+      tabs.appendChild(tab);
+    });
+    controls.appendChild(tabs); rail.appendChild(controls);
+    var list = document.createElement('div'); list.className = 'mn-rail-list'; rail.appendChild(list);
+    var shown = state.notes.filter(function (n) { return !(n.resolved && hideResolved) && filterMatches(n, activeFilter); });
     if (!shown.length) {
       var empty = document.createElement('p'); empty.className = 'mn-empty';
-      empty.textContent = 'Select text to highlight, mark, or comment.';
-      rail.appendChild(empty); placeCards(); return;
+      empty.textContent = activeFilter === 'all' ? 'Select text to add a priority note or strike it out.' : 'No open items in this priority.';
+      list.appendChild(empty); placeCards(); return;
     }
     shown.forEach(function (n) {
       var card = document.createElement('article'); card.className = 'mn-card'; card.dataset.note = n.id;
       card.dataset.kind = n.kind || 'comment';
-      if (n.intent) card.dataset.intent = n.intent;
+      if (n.priority) card.dataset.priority = n.priority;
       var draftOpen = hasDraft(n);
-      var isMark = n.kind !== 'comment' && !hasPostedThread(n) && !draftOpen;
+      var active = activeNoteId === n.id && n.kind !== 'strike';
       card.setAttribute('aria-label', itemLabel(n));
-      if (isMark) card.classList.add('mark');
+      if (active) card.classList.add('active'); else card.classList.add('compact');
       if (draftOpen) card.classList.add('draft');
       var unanchored = !n.resolved && n._located < 0;
       if (n.resolved) card.classList.add('resolved');
       if (unanchored) card.classList.add('unanchored');
 
       var head = document.createElement('div'); head.className = 'mn-card-head';
-      var id = document.createElement('span'); id.className = 'mn-id'; id.textContent = itemLabel(n);
+      var id = document.createElement('span'); id.className = 'mn-id';
+      id.textContent = n.kind === 'strike' ? 'Deletion' : noteLabel(n) + ' · ' + itemLabel(n);
       head.appendChild(id);
-      if (n.kind !== 'comment') {
-        var kd = document.createElement('span'); kd.className = 'mn-kind';
-        kd.title = markLabel(n);
-        kd.style.background = n.kind === 'highlight'
-          ? 'var(--hl-' + (n.color || 'yellow') + ')' : colorFor(n.author);
-        head.appendChild(kd);
-      }
       if (draftOpen) {
         var draftBadge = document.createElement('span'); draftBadge.className = 'mn-badge';
         draftBadge.textContent = 'draft';
@@ -836,25 +887,41 @@ mark.mn-hl.hl-strike { background: transparent;
       if (changed) card.classList.add('changed');
       var grow = document.createElement('span'); grow.className = 'grow'; grow.style.flex = '1'; head.appendChild(grow);
       var resolveBtn = null;
-      if (!draftOpen && (!isMark || n.resolved)) {
+      if (active && !draftOpen && n.kind !== 'strike') {
         resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-btn mn-resolve-action';
         resolveBtn.textContent = n.resolved ? 'Reopen discussion' : 'Resolve discussion';
         resolveBtn.setAttribute('aria-label', n.resolved ? 'Reopen ' + itemLabel(n) : 'Resolve ' + itemLabel(n));
-        resolveBtn.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
+        resolveBtn.addEventListener('click', function () {
+          n.resolved = !n.resolved; n.resolvedAt = n.resolved ? new Date().toISOString() : null; touchNote(n);
+          paintHighlights(); renderRail(); markDirty();
+        });
       }
-      var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = 'Delete';
-      delBtn.setAttribute('aria-label', 'Delete ' + itemLabel(n));
-      delBtn.addEventListener('click', function () { removeNote(n); });
-      if (isMark) {
-        var talkBtn = document.createElement('button'); talkBtn.className = 'mn-icon';
-        talkBtn.textContent = 'Add comment'; talkBtn.setAttribute('aria-label', 'Comment on this mark');
-        talkBtn.addEventListener('click', function () { openDraftForNote(n); });
-        head.appendChild(talkBtn);
+      if (n.kind === 'strike') {
+        var undoStrike = document.createElement('button'); undoStrike.className = 'mn-icon'; undoStrike.textContent = 'Undo';
+        undoStrike.setAttribute('aria-label', 'Undo deletion for ' + itemLabel(n));
+        undoStrike.addEventListener('click', function () { removeNote(n); });
+        head.appendChild(undoStrike);
+      } else if (!active) {
+        var openBtn = document.createElement('button'); openBtn.className = 'mn-icon mn-open-note'; openBtn.textContent = 'Open';
+        openBtn.setAttribute('aria-label', 'Open ' + itemLabel(n));
+        openBtn.addEventListener('click', function () { activeNoteId = n.id; renderRail(); });
+        head.appendChild(openBtn);
+      } else {
+        var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = 'Delete';
+        delBtn.setAttribute('aria-label', 'Delete ' + itemLabel(n));
+        delBtn.addEventListener('click', function () { removeNote(n); });
+        head.appendChild(delBtn);
       }
-      head.appendChild(delBtn);
       card.appendChild(head);
 
-      if (!n.resolved && n.anchor && n.anchor.quote) {
+      var compactQuote = document.createElement('span'); compactQuote.className = 'mn-row-quote';
+      compactQuote.textContent = n.anchor && n.anchor.quote ? '“' + n.anchor.quote + '”' : 'No source span';
+      card.appendChild(compactQuote);
+      var compactSummary = document.createElement('div'); compactSummary.className = 'mn-row-summary';
+      compactSummary.textContent = n.kind === 'strike' ? 'Remove this text.' : (n.thread[0] && n.thread[0].body ? n.thread[0].body : 'Draft note');
+      card.appendChild(compactSummary);
+
+      if (active && !n.resolved && n.anchor && n.anchor.quote) {
         var qt = n.anchor.quote;
         if (qt.length > 160) qt = qt.slice(0, 157) + '…';
         var q = document.createElement('div'); q.className = 'mn-quote';
@@ -865,8 +932,13 @@ mark.mn-hl.hl-strike { background: transparent;
         card.appendChild(q);
       }
 
-      // Resolved cards collapse to just their header.
-      if (!n.resolved && !isMark) {
+      if (active && (unanchored || changed)) {
+        var repair = document.createElement('div'); repair.className = 'mn-reattach';
+        repair.textContent = 'Select the replacement text, then use Reattach in the selection menu.';
+        card.appendChild(repair);
+      }
+
+      if (active && !n.resolved) {
         var conv = document.createElement('div'); conv.className = 'mn-conv';
         var entries = n.thread || [];
         var expanded = expandedThreads[n.id] || entries.length <= 2;
@@ -893,7 +965,7 @@ mark.mn-hl.hl-strike { background: transparent;
           reply.placeholder = 'Reply to this discussion…'; reply.setAttribute('aria-label', 'Reply to ' + itemLabel(n));
           var sendReply = function () {
             var text = reply.value.trim(); if (!text) { reply.focus(); return; }
-            n.thread.push({ author: currentAuthor(), ts: new Date().toISOString(), body: text });
+            n.thread.push({ id: randomId('e'), author: currentAuthor(), ts: new Date().toISOString(), body: text }); touchNote(n);
             renderRail(); markDirty();
           };
           reply.addEventListener('keydown', function (e) {
@@ -919,8 +991,9 @@ mark.mn-hl.hl-strike { background: transparent;
         if (/^(TEXTAREA|BUTTON|INPUT)$/.test(e.target.tagName)) return;
         var hl = doc.querySelector('mark.mn-hl[data-note="' + n.id + '"]');
         if (hl) hl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if (n.kind !== 'strike' && activeNoteId !== n.id) { activeNoteId = n.id; renderRail(); }
       });
-      rail.appendChild(card);
+      list.appendChild(card);
     });
     placeCards();
   }
@@ -930,14 +1003,16 @@ mark.mn-hl.hl-strike { background: transparent;
   // Unanchored / resolved cards have no highlight and pin to the top.
   function placeCards() {
     var anchored = !window.matchMedia('(max-width: 880px)').matches;
+    var list = rail.querySelector('.mn-rail-list');
     var cards = Array.prototype.slice.call(rail.querySelectorAll('.mn-card'));
     if (!anchored) {
-      rail.classList.remove('anchored'); rail.style.height = '';
+      rail.classList.remove('anchored'); if (list) list.style.height = '';
       cards.forEach(function (c) { c.style.top = ''; });
       return;
     }
     rail.classList.add('anchored');
-    var railTop = rail.getBoundingClientRect().top;
+    if (!list) return;
+    var railTop = list.getBoundingClientRect().top;
     var items = cards.map(function (card) {
       var hl = doc.querySelector('mark.mn-hl[data-note="' + card.dataset.note + '"]');
       return { card: card, floating: !hl, target: hl ? (hl.getBoundingClientRect().top - railTop) : -1 };
@@ -949,7 +1024,7 @@ mark.mn-hl.hl-strike { background: transparent;
       it.card.style.top = top + 'px';
       y = top + it.card.offsetHeight + gap;
     });
-    rail.style.height = Math.max(y, doc.offsetHeight) + 'px';
+    list.style.height = Math.max(y, doc.offsetHeight) + 'px';
   }
 
   var relayoutPending = false;
@@ -1308,8 +1383,8 @@ mark.mn-hl.hl-strike { background: transparent;
     if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') { e.preventDefault(); save(); }
   });
 
-  // Selection-scoped keys: only with a live selection in the document and
-  // focus outside any editing surface, so typing in threads is never hijacked.
+  // Selection-scoped shortcuts make brief reviews cheaper than writing a prompt:
+  // 1/2/3 create priority notes, X marks a direct deletion.
   window.addEventListener('keydown', function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
     if (e.key === 'Escape') { hideTools(); hideMarkTools(); return; }
@@ -1318,13 +1393,13 @@ mark.mn-hl.hl-strike { background: transparent;
     var sel = document.getSelection();
     if (!sel || sel.isCollapsed || !doc.contains(sel.anchorNode)) return;
     var k = e.key.toLowerCase();
-    if (k !== 'h' && k !== 'u' && k !== 's' && k !== 'c') return;
+    if (k !== '1' && k !== '2' && k !== '3' && k !== 'x') return;
     e.preventDefault();
     var anchor = anchorFromSelection();
-    if (k === 'h') createMark(anchor, 'highlight', lastColor);
-    else if (k === 'u') createMark(anchor, 'underline');
-    else if (k === 's') createMark(anchor, 'strike');
-    else createNote(anchor);
+    if (k === '1') createNote(anchor, 'critical');
+    else if (k === '2') createNote(anchor, 'important');
+    else if (k === '3') createNote(anchor, 'refinement');
+    else createStrike(anchor);
   });
   window.addEventListener('beforeunload', function (e) {
     if (window.MN.isDirty()) { e.preventDefault(); e.returnValue = ''; }

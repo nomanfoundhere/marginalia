@@ -32,8 +32,8 @@ def find_current_source(view_path: str, html_text: str, override=None):
     """Path of the current .md, or None. The sibling guess runs only on a real
     title match: the doc-name fallback would otherwise read any file that
     happens to be named "source" next to the view."""
-    if override:
-        return override if pathlib.Path(override).exists() else None
+    if override is not None:
+        return override if override and pathlib.Path(override).is_file() else None
     if not TITLE_RE.search(html_text):
         return None
     cand = pathlib.Path(view_path).resolve().parent / extract_doc_name(html_text)
@@ -55,42 +55,106 @@ def extract_notes(html_text: str) -> dict:
         return {"schemaVersion": 1, "notes": []}
     return json.loads(base64.b64decode(raw).decode("utf-8"))
 
-HIGHLIGHT_TAGS = {
-    "yellow": "question",
-    "green": "approved",
-    "pink": "needs-work",
+LEGACY_PRIORITY = {
+    "pink": "critical",
+    "yellow": "important",
+    "green": "refinement",
+    "needs-work": "critical",
+    "question": "important",
+    "approved": "refinement",
 }
-HIGHLIGHT_INTENTS = set(HIGHLIGHT_TAGS.values())
+PRIORITIES = {"critical", "important", "refinement"}
 
 GROUP_BY_TAG = {
-    "needs-work": "Needs work",
-    "question": "Questions",
-    "comment": "Comments",
-    "approved": "Looks good",
-    "underline": "Other marks",
-    "strike": "Other marks",
+    "critical": "Critical",
+    "important": "Important",
+    "refinement": "Refinements",
+    "delete": "Deletions",
 }
 
-GROUP_ORDER = ["Needs work", "Questions", "Comments", "Looks good", "Other marks", "Resolved"]
+GROUP_ORDER = ["Critical", "Important", "Refinements", "Deletions", "Resolved"]
 
 def note_tag(n: dict) -> str:
     kind = n.get("kind", "comment")
+    if kind == "strike":
+        return "delete"
+    priority = n.get("priority")
+    if priority in PRIORITIES:
+        return priority
     if kind == "highlight":
-        intent = n.get("intent")
-        if intent in HIGHLIGHT_INTENTS:
-            return intent
-        color = n.get("color")
-        if color in HIGHLIGHT_TAGS:
-            return HIGHLIGHT_TAGS[color]
-        return "highlight-" + color if color else "highlight"
-    if kind in ("underline", "strike"):
-        return kind
-    return "comment"
+        return LEGACY_PRIORITY.get(n.get("intent"), LEGACY_PRIORITY.get(n.get("color"), "important"))
+    if kind == "underline":
+        return "refinement"
+    return "important"
 
 def note_group(n: dict, tag: str) -> str:
     if n.get("resolved"):
         return "Resolved"
-    return GROUP_BY_TAG.get(tag, "Other marks")
+    return GROUP_BY_TAG.get(tag, "Important")
+
+def _span_record(source: str, anchor: dict):
+    if source is None:
+        return None
+    span = margin_anchor.locate_in_source(source, anchor)
+    if span is None:
+        return None
+    return {
+        "lineRange": margin_anchor.line_range(source, span[0], span[1]),
+        "start": span[0],
+        "end": span[1],
+    }
+
+def revision_packet(data: dict, source: str = None, doc_name: str = "source",
+                    current_source: str = None, include_resolved: bool = False) -> dict:
+    """A compact, deterministic handoff for an agent that can already read the
+    Markdown source. It carries review intent and robust anchors, not a second
+    copy of the document text."""
+    if current_source is None:
+        current_status = "not-found"
+    elif source is None or current_source == source:
+        current_status = "matches-reviewed"
+    else:
+        current_status = "diverged"
+    operations = []
+    for n in data.get("notes", []):
+        if n.get("resolved") and not include_resolved:
+            continue
+        anchor = n.get("anchor") or {}
+        comments = []
+        for entry in n.get("thread", []):
+            if entry.get("draft"):
+                continue
+            body = (entry.get("body") or "").strip()
+            if body:
+                comments.append({"author": entry.get("author", "?"), "body": body,
+                                 "timestamp": entry.get("ts")})
+        tag = note_tag(n)
+        current_span = _span_record(current_source, anchor)
+        operations.append({
+            "id": n.get("id", "?"),
+            "operation": "delete" if tag == "delete" else "note",
+            "priority": None if tag == "delete" else tag,
+            "status": "resolved" if n.get("resolved") else "open",
+            "author": n.get("author", "?"),
+            "anchor": {"quote": anchor.get("quote", ""),
+                       "prefix": anchor.get("prefix", ""),
+                       "suffix": anchor.get("suffix", "")},
+            "reviewedLocation": _span_record(source, anchor),
+            "currentLocation": current_span,
+            "spanStatus": "located" if current_span else "unlocated",
+            "comments": comments,
+        })
+    return {
+        "schemaVersion": 1,
+        "document": {
+            "name": doc_name,
+            "reviewedSourceSha256": hashlib.sha256((source or "").encode("utf-8")).hexdigest(),
+            "currentSourceSha256": (hashlib.sha256(current_source.encode("utf-8")).hexdigest()
+                                    if current_source is not None else None),
+            "currentSourceStatus": current_status,
+        },
+        "operations": operations,
+    }
 
 def digest(data: dict, include_resolved: bool = False,
            source: str = None, doc_name: str = "source", context: int = 0, current_source: str = None) -> str:
@@ -167,11 +231,16 @@ if __name__ == "__main__":
     flags = [a for a in sys.argv[1:] if a.startswith("-")]
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     if len(args) != 1:
-        print("usage: distill.py [--all] [--context N] <doc-view.html>", file=sys.stderr); sys.exit(2)
+        print("usage: distill.py [--all] [--context=N] [--source=PATH] [--packet] [--no-sidecar] <doc-view.html>", file=sys.stderr); sys.exit(2)
     context = 0
     for f in flags:
         if f.startswith("--context="):
-            context = int(f.split("=", 1)[1])
+            try:
+                context = int(f.split("=", 1)[1])
+            except ValueError:
+                print("--context must be a non-negative integer", file=sys.stderr); sys.exit(2)
+            if context < 0:
+                print("--context must be a non-negative integer", file=sys.stderr); sys.exit(2)
     with open(args[0], encoding="utf-8") as f:
         html = f.read()
     data = extract_notes(html)
@@ -185,10 +254,15 @@ if __name__ == "__main__":
     current = None
     if src_path is not None:
         current = pathlib.Path(src_path).read_text(encoding="utf-8")
-    out = digest(data, include_resolved="--all" in flags, source=snapshot,
-                 doc_name=doc_name, context=context, current_source=current)
-    if snapshot is not None:
-        out = staleness(snapshot, current) + "\n" + out
+    if "--packet" in flags:
+        out = json.dumps(revision_packet(data, source=snapshot, doc_name=doc_name,
+                                         current_source=current, include_resolved="--all" in flags),
+                         indent=2, ensure_ascii=False)
+    else:
+        out = digest(data, include_resolved="--all" in flags, source=snapshot,
+                     doc_name=doc_name, context=context, current_source=current)
+        if snapshot is not None:
+            out = staleness(snapshot, current) + "\n" + out
     if "--no-sidecar" not in flags:
         write_sidecar(args[0], data, snapshot, doc_name)
     print(out)

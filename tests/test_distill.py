@@ -78,8 +78,8 @@ def test_digest_kind_tag_for_marks():
     out = distill.digest(distill.extract_notes(html),
                          source=distill.extract_source(html),
                          doc_name=distill.extract_doc_name(html))
-    assert "## Questions" in out
-    assert "open · question" in out
+    assert "## Important" in out
+    assert "open · important" in out
 
 def test_digest_groups_semantic_mark_feedback():
     notes = [
@@ -94,9 +94,20 @@ def test_digest_groups_semantic_mark_feedback():
     out = distill.digest(distill.extract_notes(html),
                          source=distill.extract_source(html),
                          doc_name=distill.extract_doc_name(html))
-    assert out.index("## Needs work") < out.index("## Comments") < out.index("## Looks good")
-    assert "open · needs-work" in out
-    assert "open · approved" in out
+    assert out.index("## Critical") < out.index("## Important") < out.index("## Refinements")
+    assert "open · critical" in out
+    assert "open · refinement" in out
+
+def test_digest_groups_deletions_separately():
+    notes = [
+        {"id": "n1", "author": "Aeva", "resolved": False, "kind": "strike",
+         "anchor": {"quote": "twikit"}, "thread": []},
+        {"id": "n2", "author": "Aeva", "resolved": False, "kind": "comment",
+         "priority": "critical", "anchor": {"quote": "full timeline"}, "thread": []},
+    ]
+    out = distill.digest(distill.extract_notes(_html_full(notes)), source=SRC_MD, doc_name="plan.md")
+    assert out.index("## Critical") < out.index("## Deletions")
+    assert "open · delete" in out
 
 def test_digest_context_lines():
     notes = [{"id": "n1", "author": "Aeva", "resolved": False,
@@ -148,6 +159,11 @@ def test_find_current_source_override_wins(tmp_path):
     view.write_text(_html_full([]))
     assert distill.find_current_source(str(view), view.read_text(), str(other)) == str(other)
 
+def test_find_current_source_rejects_empty_override(tmp_path):
+    view = tmp_path / "plan-view.html"
+    view.write_text(_html_full([]))
+    assert distill.find_current_source(str(view), view.read_text(), "") is None
+
 def test_sidecar_written_next_to_view(tmp_path):
     notes = [{"id": "n1", "author": "Aeva", "resolved": False,
               "anchor": {"quote": "full timeline"}, "thread": []}]
@@ -161,3 +177,28 @@ def test_sidecar_written_next_to_view(tmp_path):
     assert side["notes"][0]["id"] == "n1"
     assert len(side["sourceSha256"]) == 64
     assert "extractedAt" in side
+
+def test_revision_packet_carries_operation_priority_and_anchor():
+    notes = [
+        {"id": "n1", "author": "Aeva", "resolved": False, "kind": "comment",
+         "priority": "critical", "anchor": {"quote": "full timeline", "prefix": "the ", "suffix": "."},
+         "thread": [{"author": "Aeva", "body": "Be specific"}]},
+        {"id": "n2", "author": "Aeva", "resolved": False, "kind": "strike",
+         "anchor": {"quote": "twikit"}, "thread": []},
+    ]
+    packet = distill.revision_packet({"schemaVersion": 2, "notes": notes}, source=SRC_MD,
+                                     current_source=SRC_MD, doc_name="plan.md")
+    assert packet["document"]["currentSourceStatus"] == "matches-reviewed"
+    assert packet["operations"][0]["operation"] == "note"
+    assert packet["operations"][0]["priority"] == "critical"
+    assert packet["operations"][0]["currentLocation"]["lineRange"] == "3"
+    assert packet["operations"][1]["operation"] == "delete"
+    assert packet["operations"][1]["priority"] is None
+
+def test_revision_packet_marks_changed_current_span_unlocated():
+    notes = [{"id": "n1", "author": "Aeva", "resolved": False, "kind": "comment",
+              "priority": "important", "anchor": {"quote": "full timeline"}, "thread": []}]
+    packet = distill.revision_packet({"notes": notes}, source=SRC_MD,
+                                     current_source=SRC_MD.replace("full timeline", "entire history"))
+    assert packet["document"]["currentSourceStatus"] == "diverged"
+    assert packet["operations"][0]["spanStatus"] == "unlocated"
