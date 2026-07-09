@@ -11,9 +11,10 @@ Pull feedback out of `<doc>-view.html` and act on it.
 2. Run: `python3 <root>/distill.py <doc>-view.html`
    - The header states whether the current `.md` still matches the reviewed
      snapshot; treat "diverged" as: verify each span before editing.
-   - Each unresolved note prints as `[id · author · status] <doc>.md:LINES "quote"`
-     plus thread lines; standalone marks carry their kind (`highlight-yellow`,
-     `underline`, `strike`) — wordless flags on the quoted span.
+   - Feedback is grouped by meaning. Each unresolved item prints as
+     `[id · author · status · tag] <doc>.md:LINES "quote"` plus thread lines.
+     Highlight tags are semantic (`question`, `approved`, `needs-work`);
+     underline and strike remain wordless span flags.
    - A `<doc>.notes.json` sidecar is written next to the view file; commit it
      so review history lands in git. `--no-sidecar` suppresses.
 3. Read ONLY that digest. Edit at the printed line addresses; on an

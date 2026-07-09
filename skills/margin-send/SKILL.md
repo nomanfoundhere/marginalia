@@ -15,8 +15,10 @@ Turn `<doc>.md` into `<doc>-view.html` and open it for review.
      appears show as "text changed" in the viewer — the usual sign the span
      was revised in response.
 3. Open it: `open -a Helium <printed-path>`
-4. Tell the user: select text, then pick a highlight color, underline, strike,
-   or "+ note" (keys: H/U/S/C). To enable in-place saving, drag the file from
-   Finder onto its own window once; after that saving is one click.
+4. Tell the user: select text, then pick Question (yellow), Looks good (green),
+   Needs work (pink), underline, strike, or Comment (keys: H/U/S/C). Clicking an
+   existing mark opens controls for commenting on that same span. To enable
+   in-place saving, drag the file from Finder onto its own window once; after
+   that saving is one click.
 
 Do not edit `<doc>.md` here. This skill only produces and opens the view.

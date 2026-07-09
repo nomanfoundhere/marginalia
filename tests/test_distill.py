@@ -78,7 +78,25 @@ def test_digest_kind_tag_for_marks():
     out = distill.digest(distill.extract_notes(html),
                          source=distill.extract_source(html),
                          doc_name=distill.extract_doc_name(html))
-    assert "highlight-yellow" in out
+    assert "## Questions" in out
+    assert "open · question" in out
+
+def test_digest_groups_semantic_mark_feedback():
+    notes = [
+        {"id": "n1", "author": "Aeva", "resolved": False, "kind": "highlight",
+         "color": "pink", "anchor": {"quote": "twikit"}, "thread": []},
+        {"id": "n2", "author": "Aeva", "resolved": False, "kind": "comment",
+         "anchor": {"quote": "full timeline"}, "thread": [{"author": "Aeva", "body": "expand"}]},
+        {"id": "n3", "author": "Aeva", "resolved": False, "kind": "highlight",
+         "color": "green", "anchor": {"quote": "pull"}, "thread": []},
+    ]
+    html = _html_full(notes)
+    out = distill.digest(distill.extract_notes(html),
+                         source=distill.extract_source(html),
+                         doc_name=distill.extract_doc_name(html))
+    assert out.index("## Needs work") < out.index("## Comments") < out.index("## Looks good")
+    assert "open · needs-work" in out
+    assert "open · approved" in out
 
 def test_digest_context_lines():
     notes = [{"id": "n1", "author": "Aeva", "resolved": False,
@@ -91,7 +109,8 @@ def test_digest_context_lines():
 
 def test_digest_without_source_unchanged():
     out = distill.digest(distill.extract_notes(_html(DATA)))
-    assert "full timeline" in out and ":" not in out.splitlines()[2].split("]")[1].split('"')[0]
+    item = [line for line in out.splitlines() if line.startswith("[n1")][0]
+    assert "full timeline" in out and ":" not in item.split("]")[1].split('"')[0]
 
 def test_staleness_match():
     assert distill.staleness(SRC_MD, SRC_MD) == "source matches the reviewed snapshot"

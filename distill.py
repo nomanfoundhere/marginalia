@@ -55,10 +55,47 @@ def extract_notes(html_text: str) -> dict:
         return {"schemaVersion": 1, "notes": []}
     return json.loads(base64.b64decode(raw).decode("utf-8"))
 
+HIGHLIGHT_TAGS = {
+    "yellow": "question",
+    "green": "approved",
+    "pink": "needs-work",
+}
+HIGHLIGHT_INTENTS = set(HIGHLIGHT_TAGS.values())
+
+GROUP_BY_TAG = {
+    "needs-work": "Needs work",
+    "question": "Questions",
+    "comment": "Comments",
+    "approved": "Looks good",
+    "underline": "Other marks",
+    "strike": "Other marks",
+}
+
+GROUP_ORDER = ["Needs work", "Questions", "Comments", "Looks good", "Other marks", "Resolved"]
+
+def note_tag(n: dict) -> str:
+    kind = n.get("kind", "comment")
+    if kind == "highlight":
+        intent = n.get("intent")
+        if intent in HIGHLIGHT_INTENTS:
+            return intent
+        color = n.get("color")
+        if color in HIGHLIGHT_TAGS:
+            return HIGHLIGHT_TAGS[color]
+        return "highlight-" + color if color else "highlight"
+    if kind in ("underline", "strike"):
+        return kind
+    return "comment"
+
+def note_group(n: dict, tag: str) -> str:
+    if n.get("resolved"):
+        return "Resolved"
+    return GROUP_BY_TAG.get(tag, "Other marks")
+
 def digest(data: dict, include_resolved: bool = False,
            source: str = None, doc_name: str = "source", context: int = 0, current_source: str = None) -> str:
     notes = data.get("notes", [])
-    lines, shown = [], 0
+    groups, shown = {}, 0
     for n in notes:
         if n.get("resolved") and not include_resolved:
             continue
@@ -66,10 +103,7 @@ def digest(data: dict, include_resolved: bool = False,
         status = "resolved" if n.get("resolved") else "open"
         anchor = n.get("anchor") or {}
         quote = anchor.get("quote", "")
-        tag = ""
-        kind = n.get("kind", "comment")
-        if kind != "comment":
-            tag = " · " + kind + ("-" + n["color"] if n.get("color") else "")
+        tag = note_tag(n)
         addr, span = "", None
         if source is not None:
             span = margin_anchor.locate_in_source(source, anchor)
@@ -78,22 +112,32 @@ def digest(data: dict, include_resolved: bool = False,
         if current_source is not None and current_source != source and quote:
             if margin_anchor.locate_in_source(current_source, anchor) is None:
                 addr += " (span changed in current source)"
-        lines.append('[%s · %s · %s%s]%s "%s"'
-                     % (n.get("id", "?"), n.get("author", "?"), status, tag, addr, quote))
+        item = ['[%s · %s · %s · %s]%s "%s"'
+                % (n.get("id", "?"), n.get("author", "?"), status, tag, addr, quote)]
         for e in n.get("thread", []):
             if e.get("draft"):
                 continue
             body = (e.get("body") or "").strip()
             if body:
-                lines.append("  %s: %s" % (e.get("author", "?"), body))
+                item.append("  %s: %s" % (e.get("author", "?"), body))
         if context and span:
             src_lines = source.splitlines()
             first = source.count("\n", 0, span[0]) + 1
             last = source.count("\n", 0, max(span[0], span[1] - 1)) + 1
             lo, hi = max(1, first - context), min(len(src_lines), last + context)
             for ln in range(lo, hi + 1):
-                lines.append("    %d: %s" % (ln, src_lines[ln - 1]))
+                item.append("    %d: %s" % (ln, src_lines[ln - 1]))
+        group = note_group(n, tag)
+        groups.setdefault(group, []).append(item)
+    lines = []
+    present = [g for g in GROUP_ORDER if g in groups]
+    present.extend(g for g in groups if g not in present)
+    for group in present:
+        lines.append("## " + group)
         lines.append("")
+        for item in groups[group]:
+            lines.extend(item)
+            lines.append("")
     scope = "" if include_resolved else " unresolved"
     header = "%d%s note(s) of %d total" % (shown, scope, len(notes))
     return (header + "\n\n" + "\n".join(lines)).rstrip()

@@ -8,18 +8,21 @@ The viewer ships two themes (it follows your OS preference and remembers a
 manual toggle), aligns each note card to its highlight in the margin, and
 fetches nothing at runtime — system fonts only, no network, fully offline.
 
-Each note opens a thread: reviewers reply, resolve, or delete it, and edit their
-own messages. A reviewer sets a name once through an inline chip (no browser
-prompt), and a colored monogram then marks every message they leave. A note
-whose quoted text no longer matches the document shows as unanchored, keeping its
-quote, instead of vanishing.
+Each comment opens as a draft with an explicit Post button, then becomes a
+thread: reviewers reply, resolve, delete, or edit their own messages. A reviewer
+sets a name once through an inline chip (no browser prompt), and a colored
+monogram then marks every message they leave. A note whose quoted text no longer
+matches the document shows as unanchored, keeping its quote, instead of
+vanishing.
 
-Selecting text raises a small toolbar: three highlight colors, underline,
-strikethrough, and a note. Bare marks travel to the author as wordless
-flags on their exact span; notes carry threads. The collect step prints
-each item with its source line address, states whether the `.md` has moved
-since the review, and writes a git-friendly `<doc>.notes.json` sidecar so
-the conversation survives the view file.
+Selecting text raises a small toolbar: yellow Question, green Looks good, pink
+Needs work, underline, strikethrough, and Comment. Clicking an existing mark
+opens mark controls in the document, so a reviewer can comment on the marked span
+without making a duplicate note. Bare marks travel to the author as wordless
+flags on their exact span; comments carry threads. The collect step groups
+feedback by meaning, prints each item with its source line address, states
+whether the `.md` has moved since the review, and writes a git-friendly
+`<doc>.notes.json` sidecar so the conversation survives the view file.
 
 <!-- SCREENSHOT: light theme — docs/screenshots/light.png (capture in a browser) -->
 <!-- SCREENSHOT: dark theme  — docs/screenshots/dark.png  (capture in a browser) -->
@@ -48,7 +51,7 @@ Symlink the two skills into your Claude Code skills directory:
 
 ## Round-trip
 1. `/margin-send plan.md` — builds `plan-view.html`, opens it in Helium.
-2. Reviewer selects text → "+ note" → types → Save. Passes the one file on; it
+2. Reviewer selects text → "Comment" → types → Post comment → Save. Passes the one file on; it
    accumulates each reviewer's notes.
 3. `/margin-collect plan-view.html` — distills unresolved notes; the author
    revises `plan.md` and regenerates.

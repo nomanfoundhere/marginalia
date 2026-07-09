@@ -134,6 +134,8 @@ mark.mn-hl {
 .mn-card.unanchored { border-style: dashed; }
 .mn-card.changed { border-style: dotted; }
 .mn-card.changed .mn-badge { background: var(--accent); }
+.mn-card.draft { border-color: var(--accent); }
+.mn-card.draft .mn-badge { background: var(--accent); }
 
 .mn-card-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .55rem; }
 .mn-id { font: .72rem/1 ui-monospace, monospace; color: var(--ink-3);
@@ -152,6 +154,10 @@ mark.mn-hl {
 .mn-card.mark .mn-quote { margin: 0; }
 .mn-kind { width: 12px; height: 12px; border-radius: 3px; flex: none;
   border: 1px solid var(--line-2); }
+.mn-card-foot { display: flex; justify-content: flex-end; gap: .4rem;
+  margin-top: .65rem; padding-top: .55rem; border-top: 1px solid var(--line); }
+.mn-resolve-action { color: var(--ink-2); font-size: .78rem; }
+.mn-thread-toggle { margin-left: 36px; align-self: flex-start; }
 
 /* conversation: continuous connector line behind the avatars */
 .mn-conv { position: relative; display: flex; flex-direction: column; gap: .7rem; }
@@ -172,16 +178,20 @@ mark.mn-hl {
   padding: .4rem .5rem;
 }
 .mn-msg textarea { resize: vertical; }
+.mn-msg.draft textarea { border-color: var(--accent); }
 .mn-reply { resize: none; }
 .mn-msg-actions { display: flex; justify-content: flex-end; margin-top: .35rem; }
 .mn-replybox { display: flex; gap: .4rem; align-items: stretch; }
 .mn-replybox .mn-reply { flex: 1; min-width: 0; }
 
 /* selection toolbar */
-.mn-tools { position: absolute; z-index: 30; transform: translateY(-120%);
+.mn-tools, .mn-mark-tools { position: absolute; z-index: 30; transform: translateY(-120%);
   display: flex; gap: .25rem; align-items: center; padding: .25rem .35rem;
   background: var(--panel); border: 1px solid var(--line-2); border-radius: 10px;
   box-shadow: var(--shadow-btn); }
+.mn-mark-tools { z-index: 31; transform: translateY(-135%); }
+.mn-mark-label { font: .72rem/1 ui-monospace, monospace; color: var(--ink-3);
+  padding: 0 .25rem; white-space: nowrap; }
 .mn-tool { font: inherit; font-size: .82rem; line-height: 1; cursor: pointer;
   border: 1px solid transparent; border-radius: 6px; padding: .3rem .45rem;
   background: none; color: var(--ink); }
@@ -271,6 +281,27 @@ mark.mn-hl.hl-strike { background: transparent;
     return btoa(String.fromCharCode.apply(null, new TextEncoder().encode(str)));
   }
 
+  var MARK_COLORS = ['yellow', 'green', 'pink'];
+  var MARK_INTENTS = {
+    yellow: { tag: 'question', label: 'Question' },
+    green: { tag: 'approved', label: 'Looks good' },
+    pink: { tag: 'needs-work', label: 'Needs work' }
+  };
+  function markIntentForColor(color) {
+    return MARK_INTENTS[color] || { tag: 'highlight', label: 'Highlight' };
+  }
+  function markLabel(n) {
+    if (n.kind === 'highlight') return markIntentForColor(n.color || 'yellow').label;
+    if (n.kind === 'underline') return 'Underline';
+    if (n.kind === 'strike') return 'Strike';
+    return 'Comment';
+  }
+  function normalizeMarkSemantics(n) {
+    if (n.kind !== 'highlight') return;
+    if (!n.color) n.color = 'yellow';
+    n.intent = markIntentForColor(n.color).tag;
+  }
+
   // --- state ---
   // Same failure class as the notes block below: a corrupt source payload would
   // throw in b64decode and crash the boot before anything paints. Degrade to an
@@ -305,7 +336,10 @@ mark.mn-hl.hl-strike { background: transparent;
     if (!state.notes) state.notes = [];
     state.schemaVersion = 2;
     // v1 ledgers predate kinds; every reader from here on can rely on n.kind.
-    state.notes.forEach(function (n) { if (!n.kind) n.kind = 'comment'; });
+    state.notes.forEach(function (n) {
+      if (!n.kind) n.kind = 'comment';
+      normalizeMarkSemantics(n);
+    });
   }
   normalizeState();
 
@@ -451,7 +485,12 @@ mark.mn-hl.hl-strike { background: transparent;
   tools.className = 'mn-tools'; tools.hidden = true;
   tools.setAttribute('role', 'toolbar'); tools.setAttribute('aria-label', 'Annotate selection');
   document.body.appendChild(tools);
+  var markTools = document.createElement('div');
+  markTools.className = 'mn-mark-tools'; markTools.hidden = true;
+  markTools.setAttribute('role', 'toolbar'); markTools.setAttribute('aria-label', 'Edit mark');
+  document.body.appendChild(markTools);
   function hideTools() { tools.hidden = true; }
+  function hideMarkTools() { markTools.hidden = true; }
 
   function toolBtn(label, aria, cls) {
     var b = document.createElement('button');
@@ -479,18 +518,21 @@ mark.mn-hl.hl-strike { background: transparent;
       fn(anchor);
     });
   }
-  ['yellow', 'green', 'pink'].forEach(function (c) {
-    var b = toolBtn('', 'Highlight ' + c, 'mn-tool-dot');
+  MARK_COLORS.forEach(function (c) {
+    var intent = markIntentForColor(c);
+    var b = toolBtn('', intent.label + ' highlight', 'mn-tool-dot');
     b.style.background = 'var(--hl-' + c + ')';
+    b.title = intent.label + ' highlight (H uses the last highlight color)';
     wireTool(b, function (anchor) { lastColor = c; createMark(anchor, 'highlight', c); });
   });
-  wireTool(toolBtn('<u>U</u>', 'Underline'), function (anchor) { createMark(anchor, 'underline'); });
-  wireTool(toolBtn('<s>S</s>', 'Strike through'), function (anchor) { createMark(anchor, 'strike'); });
-  wireTool(toolBtn('+ note', 'Leave a note on the selected text'), createNote);
+  wireTool(toolBtn('<u>U</u>', 'Underline (U)'), function (anchor) { createMark(anchor, 'underline'); });
+  wireTool(toolBtn('<s>S</s>', 'Strike through (S)'), function (anchor) { createMark(anchor, 'strike'); });
+  wireTool(toolBtn('Comment', 'Leave a comment on the selected text (C)'), createNote);
 
   document.addEventListener('selectionchange', function () {
     var sel = document.getSelection();
     if (!sel || sel.isCollapsed || !doc.contains(sel.anchorNode)) { hideTools(); return; }
+    hideMarkTools();
     var rect = sel.getRangeAt(0).getBoundingClientRect();
     if (!rect.width) { hideTools(); return; }
     tools.style.left = (window.scrollX + rect.left) + 'px';
@@ -502,8 +544,7 @@ mark.mn-hl.hl-strike { background: transparent;
     var author = currentAuthor();
     var existing = matchingMarkedNote(anchor);
     if (existing) {
-      var draftIndex = ensureDraft(existing, author);
-      paintHighlights(); renderRail(); markDirty(); focusDraft(existing.id, draftIndex);
+      openDraftForNote(existing);
       return;
     }
     var id = 'n' + (++seq);
@@ -517,7 +558,12 @@ mark.mn-hl.hl-strike { background: transparent;
   function createMark(anchor, kind, color) {
     var note = { id: 'n' + (++seq), author: currentAuthor(), kind: kind,
       created: new Date().toISOString(), anchor: anchor, thread: [], resolved: false };
-    if (color) note.color = color;
+    if (kind === 'highlight') {
+      note.color = color || lastColor || 'yellow';
+      note.intent = markIntentForColor(note.color).tag;
+    } else if (color) {
+      note.color = color;
+    }
     state.notes.push(note);
     paintHighlights(); renderRail(); markDirty();
   }
@@ -543,6 +589,10 @@ mark.mn-hl.hl-strike { background: transparent;
     var ta = rail.querySelector('[data-edit="' + id + '"][data-entry="' + index + '"]');
     if (ta) ta.focus();
   }
+  function openDraftForNote(n) {
+    var draftIndex = ensureDraft(n, currentAuthor());
+    paintHighlights(); renderRail(); markDirty(); focusDraft(n.id, draftIndex);
+  }
   function matchingMarkedNote(anchor) {
     var idx = globalThis.MarginCore.locateAnchor(flatText(), anchor);
     if (idx < 0) return null;
@@ -553,6 +603,66 @@ mark.mn-hl.hl-strike { background: transparent;
     }
     return null;
   }
+  function noteById(id) {
+    for (var i = 0; i < state.notes.length; i++) if (state.notes[i].id === id) return state.notes[i];
+    return null;
+  }
+  function removeNote(n) {
+    var index = state.notes.indexOf(n);
+    state.notes = state.notes.filter(function (x) { return x !== n; });
+    hideMarkTools();
+    paintHighlights(); renderRail(); markDirty();
+    showUndoToast(n, index);
+  }
+  function markToolButton(label, aria, cls) {
+    var b = document.createElement('button');
+    b.type = 'button'; b.className = 'mn-tool' + (cls ? ' ' + cls : '');
+    b.innerHTML = label; b.setAttribute('aria-label', aria); b.title = aria;
+    markTools.appendChild(b);
+    return b;
+  }
+  function showMarkTools(mk) {
+    var n = noteById(mk.dataset.note);
+    if (!n) return;
+    hideTools();
+    markTools.innerHTML = '';
+    var label = document.createElement('span'); label.className = 'mn-mark-label';
+    label.textContent = markLabel(n);
+    markTools.appendChild(label);
+    markToolButton('Comment', 'Comment on this mark').addEventListener('click', function () {
+      hideMarkTools(); openDraftForNote(n);
+    });
+    if (n.kind === 'highlight') {
+      MARK_COLORS.forEach(function (c) {
+        var intent = markIntentForColor(c);
+        var b = markToolButton('', intent.label, 'mn-tool-dot');
+        b.style.background = 'var(--hl-' + c + ')';
+        if ((n.color || 'yellow') === c) b.style.borderColor = 'var(--accent)';
+        b.addEventListener('click', function () {
+          n.color = c; normalizeMarkSemantics(n); lastColor = c;
+          hideMarkTools(); paintHighlights(); renderRail(); markDirty();
+        });
+      });
+    }
+    if (!hasPostedThread(n) && !hasDraft(n)) {
+      markToolButton('Remove', 'Remove this mark').addEventListener('click', function () { removeNote(n); });
+    }
+    var rect = mk.getBoundingClientRect();
+    markTools.hidden = false;
+    var left = window.scrollX + rect.left;
+    var minLeft = window.scrollX + 8;
+    var maxLeft = window.scrollX + document.documentElement.clientWidth - markTools.offsetWidth - 8;
+    if (maxLeft < minLeft) maxLeft = minLeft;
+    markTools.style.left = Math.max(minLeft, Math.min(left, maxLeft)) + 'px';
+    markTools.style.top = (window.scrollY + rect.top) + 'px';
+  }
+  markTools.addEventListener('mousedown', function (e) { e.preventDefault(); });
+  markTools.addEventListener('click', function (e) { e.stopPropagation(); });
+  document.addEventListener('click', function (e) {
+    if (markTools.hidden || markTools.contains(e.target)) return;
+    if (e.target.closest && e.target.closest('mark.mn-hl')) return;
+    hideMarkTools();
+  });
 
   // --- repaint highlights from anchors ---
   function paintHighlights() {
@@ -570,6 +680,7 @@ mark.mn-hl.hl-strike { background: transparent;
       var range = rangeFromFlat(idx, n.anchor.quote.length);
       if (!range) return;
       var mk = document.createElement('mark'); mk.className = 'mn-hl'; mk.dataset.note = n.id;
+      mk.tabIndex = 0; mk.title = markLabel(n) + ': click to comment or edit';
       if (n.kind === 'highlight') {
         mk.classList.add('hl-' + (n.color || 'yellow'));
       } else if (n.kind === 'underline' || n.kind === 'strike') {
@@ -586,14 +697,20 @@ mark.mn-hl.hl-strike { background: transparent;
   // --- threaded rail ---
   var hideResolved = false;
   var editing = {};
+  var expandedThreads = {};
 
   function noteLabel(id) {
     var n = parseInt(String(id || '').replace(/\D/g, ''), 10);
     return isNaN(n) ? 'Note ' + id : 'Note ' + n;
   }
+  function itemLabel(n) {
+    var base = noteLabel(n.id).replace(/^Note/, (n.kind === 'comment' || hasPostedThread(n) || hasDraft(n)) ? 'Comment' : 'Mark');
+    return base;
+  }
 
   function messageRow(n, entry, index) {
     var row = document.createElement('div'); row.className = 'mn-msg';
+    if (entry.draft) row.classList.add('draft');
     var av = document.createElement('span'); av.className = 'mn-avatar';
     av.style.background = colorFor(entry.author); av.textContent = monogram(entry.author);
     var body = document.createElement('div'); body.className = 'mn-msg-body';
@@ -614,7 +731,7 @@ mark.mn-hl.hl-strike { background: transparent;
       var actions = document.createElement('div'); actions.className = 'mn-msg-actions';
       var primary = document.createElement('button'); primary.type = 'button'; primary.className = 'mn-save';
       primary.textContent = entry.draft ? (index === 0 ? 'Post comment' : 'Post reply') : 'Save edit';
-      primary.setAttribute('aria-label', primary.textContent + ' for ' + noteLabel(n.id));
+      primary.setAttribute('aria-label', primary.textContent + ' for ' + itemLabel(n));
       primary.addEventListener('click', function () {
         var text = ta.value.trim(); if (!text) { ta.focus(); return; }
         entry.body = text; entry.ts = new Date().toISOString(); delete entry.draft; delete editing[key];
@@ -638,7 +755,7 @@ mark.mn-hl.hl-strike { background: transparent;
       if (isMine(entry.author)) {
         var editActions = document.createElement('div'); editActions.className = 'mn-msg-actions';
         var edit = document.createElement('button'); edit.type = 'button'; edit.className = 'mn-btn';
-        edit.textContent = 'Edit'; edit.setAttribute('aria-label', 'Edit comment for ' + noteLabel(n.id));
+        edit.textContent = 'Edit'; edit.setAttribute('aria-label', 'Edit comment for ' + itemLabel(n));
         edit.addEventListener('click', function () { editing[key] = true; renderRail(); focusDraft(n.id, index); });
         editActions.appendChild(edit); body.appendChild(editActions);
       }
@@ -652,28 +769,34 @@ mark.mn-hl.hl-strike { background: transparent;
     var shown = state.notes.filter(function (n) { return !(n.resolved && hideResolved); });
     if (!shown.length) {
       var empty = document.createElement('p'); empty.className = 'mn-empty';
-      empty.textContent = 'Select text in the document to leave a note.';
+      empty.textContent = 'Select text to highlight, mark, or comment.';
       rail.appendChild(empty); placeCards(); return;
     }
     shown.forEach(function (n) {
       var card = document.createElement('article'); card.className = 'mn-card'; card.dataset.note = n.id;
-      card.setAttribute('aria-label', noteLabel(n.id));
       var draftOpen = hasDraft(n);
       var isMark = n.kind !== 'comment' && !hasPostedThread(n) && !draftOpen;
+      card.setAttribute('aria-label', itemLabel(n));
       if (isMark) card.classList.add('mark');
+      if (draftOpen) card.classList.add('draft');
       var unanchored = !n.resolved && n._located < 0;
       if (n.resolved) card.classList.add('resolved');
       if (unanchored) card.classList.add('unanchored');
 
       var head = document.createElement('div'); head.className = 'mn-card-head';
-      var id = document.createElement('span'); id.className = 'mn-id'; id.textContent = noteLabel(n.id);
+      var id = document.createElement('span'); id.className = 'mn-id'; id.textContent = itemLabel(n);
       head.appendChild(id);
       if (n.kind !== 'comment') {
         var kd = document.createElement('span'); kd.className = 'mn-kind';
-        kd.title = n.kind + (n.color ? ' ' + n.color : '');
+        kd.title = markLabel(n);
         kd.style.background = n.kind === 'highlight'
           ? 'var(--hl-' + (n.color || 'yellow') + ')' : colorFor(n.author);
         head.appendChild(kd);
+      }
+      if (draftOpen) {
+        var draftBadge = document.createElement('span'); draftBadge.className = 'mn-badge';
+        draftBadge.textContent = 'draft';
+        head.appendChild(draftBadge);
       }
       var changed = n.srcCheck === 'missing';
       if (unanchored || changed) {
@@ -684,31 +807,21 @@ mark.mn-hl.hl-strike { background: transparent;
       if (changed) card.classList.add('changed');
       var grow = document.createElement('span'); grow.className = 'grow'; grow.style.flex = '1'; head.appendChild(grow);
       var resolveBtn = null;
-      if (!draftOpen) {
-        resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-icon mn-resolve';
-        resolveBtn.textContent = n.resolved ? 'Reopen ↺' : 'Resolve ✓';
-        resolveBtn.setAttribute('aria-label', n.resolved ? 'Reopen ' + noteLabel(n.id) : 'Resolve ' + noteLabel(n.id));
+      if (!draftOpen && (!isMark || n.resolved)) {
+        resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-btn mn-resolve-action';
+        resolveBtn.textContent = n.resolved ? 'Reopen discussion' : 'Resolve discussion';
+        resolveBtn.setAttribute('aria-label', n.resolved ? 'Reopen ' + itemLabel(n) : 'Resolve ' + itemLabel(n));
         resolveBtn.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
       }
       var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = '🗑';
-      delBtn.setAttribute('aria-label', 'Delete note');
-      delBtn.addEventListener('click', function () {
-        var index = state.notes.indexOf(n);
-        state.notes = state.notes.filter(function (x) { return x !== n; });
-        paintHighlights(); renderRail(); markDirty();
-        showUndoToast(n, index);
-      });
+      delBtn.setAttribute('aria-label', 'Delete ' + itemLabel(n));
+      delBtn.addEventListener('click', function () { removeNote(n); });
       if (isMark) {
         var talkBtn = document.createElement('button'); talkBtn.className = 'mn-icon';
         talkBtn.textContent = '💬'; talkBtn.setAttribute('aria-label', 'Comment on this mark');
-        talkBtn.addEventListener('click', function () {
-          n.thread.push({ author: currentAuthor(), ts: new Date().toISOString(), body: '' });
-          renderRail(); markDirty();
-          var ta = rail.querySelector('[data-edit="' + n.id + '"]'); if (ta) ta.focus();
-        });
+        talkBtn.addEventListener('click', function () { openDraftForNote(n); });
         head.appendChild(talkBtn);
       }
-      if (resolveBtn) head.appendChild(resolveBtn);
       head.appendChild(delBtn);
       card.appendChild(head);
 
@@ -722,29 +835,50 @@ mark.mn-hl.hl-strike { background: transparent;
       // Resolved cards collapse to just their header.
       if (!n.resolved && !isMark) {
         var conv = document.createElement('div'); conv.className = 'mn-conv';
-        n.thread.forEach(function (entry, i) { conv.appendChild(messageRow(n, entry, i)); });
-
-        var composer = document.createElement('div'); composer.className = 'mn-composer';
-        var cav = document.createElement('span'); cav.className = 'mn-avatar';
-        cav.style.background = colorFor(currentAuthor()); cav.textContent = monogram(currentAuthor());
-        var replyBox = document.createElement('div'); replyBox.className = 'mn-replybox';
-        var reply = document.createElement('input'); reply.type = 'text'; reply.className = 'mn-reply';
-        reply.placeholder = 'Reply…'; reply.setAttribute('aria-label', 'Reply to ' + noteLabel(n.id));
-        var sendReply = function () {
-          var text = reply.value.trim(); if (!text) { reply.focus(); return; }
-          n.thread.push({ author: currentAuthor(), ts: new Date().toISOString(), body: text });
-          renderRail(); markDirty();
-        };
-        reply.addEventListener('keydown', function (e) {
-          if (e.key !== 'Enter') return;
-          e.preventDefault(); sendReply();
+        var entries = n.thread || [];
+        var expanded = expandedThreads[n.id] || entries.length <= 2;
+        var shownIndexes = [];
+        entries.forEach(function (entry, i) {
+          if (expanded || i < 2 || entry.draft) shownIndexes.push(i);
         });
-        var replyBtn = document.createElement('button'); replyBtn.type = 'button'; replyBtn.className = 'mn-btn';
-        replyBtn.textContent = 'Reply'; replyBtn.addEventListener('click', sendReply);
-        replyBox.appendChild(reply); replyBox.appendChild(replyBtn);
-        composer.appendChild(cav); composer.appendChild(replyBox);
-        conv.appendChild(composer);
+        shownIndexes.forEach(function (i) { conv.appendChild(messageRow(n, entries[i], i)); });
+        var hiddenCount = entries.length - shownIndexes.length;
+        if (hiddenCount > 0) {
+          var showThread = document.createElement('button'); showThread.type = 'button';
+          showThread.className = 'mn-btn mn-thread-toggle';
+          showThread.textContent = 'Show full thread (' + hiddenCount + ' more)';
+          showThread.addEventListener('click', function () { expandedThreads[n.id] = true; renderRail(); });
+          conv.appendChild(showThread);
+        }
+
+        if (!draftOpen) {
+          var composer = document.createElement('div'); composer.className = 'mn-composer';
+          var cav = document.createElement('span'); cav.className = 'mn-avatar';
+          cav.style.background = colorFor(currentAuthor()); cav.textContent = monogram(currentAuthor());
+          var replyBox = document.createElement('div'); replyBox.className = 'mn-replybox';
+          var reply = document.createElement('input'); reply.type = 'text'; reply.className = 'mn-reply';
+          reply.placeholder = 'Reply…'; reply.setAttribute('aria-label', 'Reply to ' + itemLabel(n));
+          var sendReply = function () {
+            var text = reply.value.trim(); if (!text) { reply.focus(); return; }
+            n.thread.push({ author: currentAuthor(), ts: new Date().toISOString(), body: text });
+            renderRail(); markDirty();
+          };
+          reply.addEventListener('keydown', function (e) {
+            if (e.key !== 'Enter') return;
+            e.preventDefault(); sendReply();
+          });
+          var replyBtn = document.createElement('button'); replyBtn.type = 'button'; replyBtn.className = 'mn-btn';
+          replyBtn.textContent = 'Reply'; replyBtn.addEventListener('click', sendReply);
+          replyBox.appendChild(reply); replyBox.appendChild(replyBtn);
+          composer.appendChild(cav); composer.appendChild(replyBox);
+          conv.appendChild(composer);
+        }
         card.appendChild(conv);
+      }
+      if (resolveBtn) {
+        var foot = document.createElement('div'); foot.className = 'mn-card-foot';
+        foot.appendChild(resolveBtn);
+        card.appendChild(foot);
       }
 
       card.addEventListener('click', function (e) {
@@ -813,7 +947,7 @@ mark.mn-hl.hl-strike { background: transparent;
     var t = document.createElement('div'); t.className = 'mn-undo'; undoToast = t;
     t.setAttribute('role', 'status');
     var label = document.createElement('span');
-    label.textContent = 'Note ' + note.id + ' deleted';
+    label.textContent = itemLabel(note) + ' deleted';
     var undo = document.createElement('button'); undo.className = 'mn-btn'; undo.textContent = 'Undo';
     undo.addEventListener('click', function () {
       state.notes.splice(Math.min(index, state.notes.length), 0, note);
@@ -869,9 +1003,15 @@ mark.mn-hl.hl-strike { background: transparent;
 
   doc.addEventListener('click', function (e) {
     var mk = e.target.closest && e.target.closest('mark.mn-hl');
-    if (!mk) return;
-    var card = rail.querySelector('.mn-card[data-note="' + mk.dataset.note + '"]');
-    if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (!mk) { hideMarkTools(); return; }
+    e.preventDefault();
+    showMarkTools(mk);
+  });
+  doc.addEventListener('keydown', function (e) {
+    var mk = e.target.closest && e.target.closest('mark.mn-hl');
+    if (!mk || (e.key !== 'Enter' && e.key !== ' ')) return;
+    e.preventDefault();
+    showMarkTools(mk);
   });
 
   // --- save subsystem ---
@@ -1138,7 +1278,7 @@ mark.mn-hl.hl-strike { background: transparent;
   // focus outside any editing surface, so typing in threads is never hijacked.
   window.addEventListener('keydown', function (e) {
     if (e.metaKey || e.ctrlKey || e.altKey) return;
-    if (e.key === 'Escape') { hideTools(); return; }
+    if (e.key === 'Escape') { hideTools(); hideMarkTools(); return; }
     var t = e.target;
     if (t && t.closest && t.closest('textarea, input, [contenteditable]')) return;
     var sel = document.getSelection();
