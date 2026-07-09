@@ -145,6 +145,7 @@ mark.mn-hl {
   cursor: pointer; color: var(--ink-3); padding: .2rem .4rem; font-size: .9rem;
   line-height: 1; }
 .mn-icon:hover { color: var(--ink); background: var(--field); border-color: var(--line); }
+.mn-resolve { font-size: .78rem; white-space: nowrap; }
 .mn-quote { font-size: .85rem; color: var(--ink-2);
   border-left: 3px solid var(--line-2); padding-left: .5rem; margin: 0 0 .6rem; }
 .mn-card.mark { padding: .45rem .6rem; }
@@ -172,6 +173,7 @@ mark.mn-hl {
 }
 .mn-msg textarea { resize: vertical; }
 .mn-reply { resize: none; }
+.mn-msg-actions { display: flex; justify-content: flex-end; margin-top: .35rem; }
 
 /* selection toolbar */
 .mn-tools { position: absolute; z-index: 30; transform: translateY(-120%);
@@ -432,12 +434,12 @@ mark.mn-hl.hl-strike { background: transparent;
     return null;
   }
   function flatFromSelection(sel) {
-    var nodes = textNodes(), acc = 0, startFlat = -1;
     var r = sel.getRangeAt(0);
-    for (var i = 0; i < nodes.length; i++) {
-      if (nodes[i] === r.startContainer) startFlat = acc + r.startOffset;
-      acc += nodes[i].nodeValue.length;
-    }
+    var before = document.createRange();
+    before.setStart(doc, 0);
+    before.setEnd(r.startContainer, r.startOffset);
+    var startFlat = before.toString().length;
+    before.detach();
     return { start: startFlat, quote: sel.toString() };
   }
 
@@ -543,7 +545,12 @@ mark.mn-hl.hl-strike { background: transparent;
   // --- threaded rail ---
   var hideResolved = false;
 
-  function messageRow(n, entry) {
+  function noteLabel(id) {
+    var n = parseInt(String(id || '').replace(/\D/g, ''), 10);
+    return isNaN(n) ? 'Note ' + id : 'Note ' + n;
+  }
+
+  function messageRow(n, entry, index) {
     var row = document.createElement('div'); row.className = 'mn-msg';
     var av = document.createElement('span'); av.className = 'mn-avatar';
     av.style.background = colorFor(entry.author); av.textContent = monogram(entry.author);
@@ -560,6 +567,12 @@ mark.mn-hl.hl-strike { background: transparent;
       ta.setAttribute('aria-label', 'Edit your note');
       ta.addEventListener('input', function () { entry.body = ta.value; markDirty(); });
       body.appendChild(ta);
+      var actions = document.createElement('div'); actions.className = 'mn-msg-actions';
+      var post = document.createElement('button'); post.type = 'button'; post.className = 'mn-btn';
+      post.textContent = index === 0 ? 'Comment' : 'Save edit';
+      post.setAttribute('aria-label', post.textContent + ' for ' + noteLabel(n.id));
+      post.addEventListener('click', function () { entry.body = ta.value; markDirty(); ta.blur(); });
+      actions.appendChild(post); body.appendChild(actions);
     } else {
       var p = document.createElement('div'); p.className = 'mn-text'; p.textContent = entry.body;
       body.appendChild(p);
@@ -578,7 +591,7 @@ mark.mn-hl.hl-strike { background: transparent;
     }
     shown.forEach(function (n) {
       var card = document.createElement('article'); card.className = 'mn-card'; card.dataset.note = n.id;
-      card.setAttribute('aria-label', 'Note ' + n.id);
+      card.setAttribute('aria-label', noteLabel(n.id));
       var isMark = n.kind !== 'comment' && (!n.thread || !n.thread.length);
       if (isMark) card.classList.add('mark');
       var unanchored = !n.resolved && n._located < 0;
@@ -586,7 +599,7 @@ mark.mn-hl.hl-strike { background: transparent;
       if (unanchored) card.classList.add('unanchored');
 
       var head = document.createElement('div'); head.className = 'mn-card-head';
-      var id = document.createElement('span'); id.className = 'mn-id'; id.textContent = n.id;
+      var id = document.createElement('span'); id.className = 'mn-id'; id.textContent = noteLabel(n.id);
       head.appendChild(id);
       if (n.kind !== 'comment') {
         var kd = document.createElement('span'); kd.className = 'mn-kind';
@@ -603,9 +616,9 @@ mark.mn-hl.hl-strike { background: transparent;
       }
       if (changed) card.classList.add('changed');
       var grow = document.createElement('span'); grow.className = 'grow'; grow.style.flex = '1'; head.appendChild(grow);
-      var resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-icon';
-      resolveBtn.textContent = n.resolved ? '↺' : '✓';
-      resolveBtn.setAttribute('aria-label', n.resolved ? 'Unresolve note' : 'Resolve note');
+      var resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-icon mn-resolve';
+      resolveBtn.textContent = n.resolved ? 'Reopen ↺' : 'Resolve ✓';
+      resolveBtn.setAttribute('aria-label', n.resolved ? 'Reopen ' + noteLabel(n.id) : 'Resolve ' + noteLabel(n.id));
       resolveBtn.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
       var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = '🗑';
       delBtn.setAttribute('aria-label', 'Delete note');
@@ -640,7 +653,7 @@ mark.mn-hl.hl-strike { background: transparent;
       // Resolved cards collapse to just their header.
       if (!n.resolved && !isMark) {
         var conv = document.createElement('div'); conv.className = 'mn-conv';
-        n.thread.forEach(function (entry) { conv.appendChild(messageRow(n, entry)); });
+        n.thread.forEach(function (entry, i) { conv.appendChild(messageRow(n, entry, i)); });
 
         var composer = document.createElement('div'); composer.className = 'mn-composer';
         var cav = document.createElement('span'); cav.className = 'mn-avatar';
