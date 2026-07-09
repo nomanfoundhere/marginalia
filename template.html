@@ -21,27 +21,29 @@
 * { box-sizing: border-box; }
 
 html[data-theme="light"] {
-  --desk: #f3f4f6; --panel: #ffffff;
-  --ink: #1a1d24; --ink-2: #4b5563; --ink-3: #6b7280;
-  --line: #e5e7eb; --line-2: #cdd2da;
-  --field: #f7f8fa; --accent: #2563eb;
-  --shadow:      5px 5px 0 rgba(17, 20, 26, .10);
-  --shadow-card: 4px 4px 0 rgba(17, 20, 26, .08);
-  --shadow-btn:  2px 2px 0 rgba(17, 20, 26, .12);
+  --desk: #eef1f7; --panel: #ffffff;
+  --ink: #172033; --ink-2: #4d5b70; --ink-3: #768196;
+  --line: #dce2ec; --line-2: #c4cedd;
+  --field: #f6f8fc; --accent: #365dc9; --on-accent: #ffffff;
+  --shadow:      0 16px 36px rgba(31, 43, 66, .10);
+  --shadow-card: 0 4px 14px rgba(31, 43, 66, .08);
+  --shadow-btn:  0 1px 2px rgba(31, 43, 66, .12);
   --hl-yellow: #fde68a; --hl-green: #bbf7d0; --hl-pink: #fbcfe8;
+  --question: #b77908; --approved: #27855b; --needs-work: #c24f70;
 }
 html[data-theme="dark"] {
-  --desk: #1a1d24; --panel: #23272f;
-  --ink: #e8eaed; --ink-2: #b6bcc6; --ink-3: #8b919c;
-  --line: #2f343d; --line-2: #3b414c;
-  --field: #1b1e25; --accent: #6ea0ff;
-  --shadow:      6px 6px 0 rgba(0, 0, 0, .46);
-  --shadow-card: 4px 4px 0 rgba(0, 0, 0, .42);
-  --shadow-btn:  2px 2px 0 rgba(0, 0, 0, .46);
+  --desk: #161a22; --panel: #202631;
+  --ink: #e9edf5; --ink-2: #b9c2d0; --ink-3: #929daf;
+  --line: #303846; --line-2: #465162;
+  --field: #191f29; --accent: #7ba6ff; --on-accent: #13203a;
+  --shadow:      0 16px 36px rgba(0, 0, 0, .28);
+  --shadow-card: 0 4px 14px rgba(0, 0, 0, .22);
+  --shadow-btn:  0 1px 2px rgba(0, 0, 0, .30);
   --hl-yellow: #6d5a12; --hl-green: #1c5636; --hl-pink: #6b2a50;
+  --question: #f0c44d; --approved: #65c591; --needs-work: #f184a2;
 }
 
-:root { --rail: 320px; }
+:root { --rail: clamp(19rem, 25vw, 23rem); }
 
 body {
   margin: 0; background: var(--desk); color: var(--ink);
@@ -53,24 +55,28 @@ body {
 #margin-header {
   position: sticky; top: 0; z-index: 20;
   display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
-  padding: .55rem 1rem; background: var(--panel);
+  padding: .65rem clamp(1rem, 3vw, 2rem); background: var(--panel);
   border-bottom: 1px solid var(--line);
+  box-shadow: 0 1px 0 rgba(20, 28, 43, .04);
 }
 #margin-header .grow { flex: 1 1 8rem; min-width: 0; }
-.mn-title { font-weight: 600; color: var(--ink-2);
+.mn-title { font-weight: 650; color: var(--ink-2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .mn-btn, .mn-save {
   font: inherit; font-size: .85rem; padding: .35rem .7rem;
   border: 1px solid var(--line-2); border-radius: 8px;
   background: var(--field); color: var(--ink); cursor: pointer;
-  box-shadow: var(--shadow-btn); transition: transform .08s ease;
+  box-shadow: var(--shadow-btn); transition: border-color .12s ease, background-color .12s ease, transform .08s ease;
 }
 .mn-btn:active, .mn-save:active { transform: translate(2px, 2px); box-shadow: none; }
+.mn-btn:hover, .mn-save:hover { border-color: var(--accent); }
 .mn-save[data-state="dirty"] { color: var(--accent); font-weight: 600; }
 .mn-save[data-state="saving"] { color: var(--ink-3); }
 .mn-state { font-size: .78rem; color: var(--ink-3); white-space: nowrap; }
 .mn-state[data-state="dirty"] { color: var(--accent); }
+.mn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.mn-primary:hover { background: var(--accent); border-color: var(--accent); filter: brightness(1.06); }
 
 .mn-identity { display: inline-flex; }
 .mn-chip {
@@ -91,16 +97,22 @@ body {
 
 /* --- layout: centred reading column + anchored rail --- */
 .layout {
-  display: grid; grid-template-columns: minmax(0, 72ch) var(--rail);
-  gap: 2.2rem; justify-content: center; align-items: start;
-  padding: 2rem 1.5rem 5rem;
+  display: grid; grid-template-columns: minmax(0, 70ch) minmax(18rem, var(--rail));
+  gap: clamp(1.5rem, 3vw, 3.5rem); justify-content: center; align-items: start;
+  padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2rem) 5rem;
 }
 #margin-doc {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
-  box-shadow: var(--shadow); padding: 2.4rem clamp(1.2rem, 3vw, 2.6rem);
+  background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+  box-shadow: var(--shadow); padding: clamp(1.6rem, 4vw, 3rem) clamp(1.25rem, 4vw, 3rem);
   min-width: 0;
+  font: 17px/1.72 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
 }
-#margin-doc h1, #margin-doc h2, #margin-doc h3 { line-height: 1.25; }
+#margin-doc h1, #margin-doc h2, #margin-doc h3 {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  line-height: 1.18; letter-spacing: 0; color: var(--ink);
+}
+#margin-doc h1 { font-size: clamp(1.8rem, 3vw, 2.55rem); margin-top: 0; }
+#margin-doc h2 { margin-top: 2.2em; }
 #margin-doc pre { background: var(--field); border: 1px solid var(--line);
   border-radius: 8px; padding: .8rem; overflow: auto; }
 #margin-doc code { font-family: ui-monospace, "SFMono-Regular", monospace; font-size: .92em; }
@@ -126,10 +138,16 @@ mark.mn-hl {
 
 /* --- note card --- */
 .mn-card {
-  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
-  box-shadow: var(--shadow-card); padding: .7rem .8rem;
-  transition: top .12s ease;
+  --card-accent: var(--accent);
+  background: var(--panel); border: 1px solid var(--line); border-left: 3px solid var(--card-accent);
+  border-radius: 8px; box-shadow: var(--shadow-card); padding: .8rem .9rem .85rem;
+  transition: top .12s ease, border-color .12s ease, box-shadow .12s ease;
 }
+.mn-card[data-kind="comment"] { --card-accent: var(--accent); }
+.mn-card[data-intent="question"] { --card-accent: var(--question); }
+.mn-card[data-intent="approved"] { --card-accent: var(--approved); }
+.mn-card[data-intent="needs-work"] { --card-accent: var(--needs-work); }
+.mn-card[data-kind="underline"], .mn-card[data-kind="strike"] { --card-accent: var(--ink-3); }
 .mn-card.resolved { opacity: .6; }
 .mn-card.unanchored { border-style: dashed; }
 .mn-card.changed { border-style: dotted; }
@@ -137,30 +155,32 @@ mark.mn-hl {
 .mn-card.draft { border-color: var(--accent); }
 .mn-card.draft .mn-badge { background: var(--accent); }
 
-.mn-card-head { display: flex; align-items: center; gap: .4rem; margin-bottom: .55rem; }
-.mn-id { font: .72rem/1 ui-monospace, monospace; color: var(--ink-3);
-  background: var(--field); border: 1px solid var(--line); border-radius: 6px;
-  padding: .15rem .4rem; }
+.mn-card-head { display: flex; align-items: center; gap: .45rem; margin-bottom: .7rem; min-height: 1.25rem; }
+.mn-id { font: 650 .68rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  color: var(--ink-3); letter-spacing: .08em; text-transform: uppercase; }
 .mn-badge { font: .68rem/1 ui-monospace, monospace; color: #fff;
-  background: var(--ink-3); border-radius: 6px; padding: .16rem .4rem; }
+  background: var(--ink-3); border-radius: 999px; padding: .2rem .42rem; }
 .mn-icon { background: none; border: 1px solid transparent; border-radius: 6px;
-  cursor: pointer; color: var(--ink-3); padding: .2rem .4rem; font-size: .9rem;
+  cursor: pointer; color: var(--ink-3); padding: .22rem .35rem; font-size: .75rem;
   line-height: 1; }
 .mn-icon:hover { color: var(--ink); background: var(--field); border-color: var(--line); }
-.mn-resolve { font-size: .78rem; white-space: nowrap; }
-.mn-quote { font-size: .85rem; color: var(--ink-2);
-  border-left: 3px solid var(--line-2); padding-left: .5rem; margin: 0 0 .6rem; }
-.mn-card.mark { padding: .45rem .6rem; }
+.mn-quote { color: var(--ink-2); background: var(--field); border-left: 2px solid var(--card-accent);
+  border-radius: 0 5px 5px 0; padding: .45rem .6rem; margin: 0 0 .8rem;
+  font: .83rem/1.45 "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif; }
+.mn-quote-kicker { display: block; margin-bottom: .18rem; color: var(--ink-3);
+  font: 650 .63rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .08em; text-transform: uppercase; }
+.mn-card.mark { padding: .7rem .8rem; }
 .mn-card.mark .mn-quote { margin: 0; }
 .mn-kind { width: 12px; height: 12px; border-radius: 3px; flex: none;
   border: 1px solid var(--line-2); }
 .mn-card-foot { display: flex; justify-content: flex-end; gap: .4rem;
-  margin-top: .65rem; padding-top: .55rem; border-top: 1px solid var(--line); }
-.mn-resolve-action { color: var(--ink-2); font-size: .78rem; }
+  margin-top: .8rem; padding-top: .65rem; border-top: 1px solid var(--line); }
+.mn-resolve-action { color: var(--ink-2); font-size: .78rem; box-shadow: none; }
 .mn-thread-toggle { margin-left: 36px; align-self: flex-start; }
 
 /* conversation: continuous connector line behind the avatars */
-.mn-conv { position: relative; display: flex; flex-direction: column; gap: .7rem; }
+.mn-conv { position: relative; display: flex; flex-direction: column; gap: .85rem; }
 .mn-conv::before { content: ""; position: absolute; left: 14px; top: 14px; bottom: 14px;
   width: 2px; background: var(--line-2); transform: translateX(-50%); z-index: 0; }
 .mn-msg, .mn-composer { display: grid; grid-template-columns: 28px 1fr; gap: .55rem;
@@ -169,13 +189,13 @@ mark.mn-hl {
   display: grid; place-items: center; color: #fff;
   font: 600 .75rem/1 ui-monospace, monospace;
   box-shadow: 0 0 0 2px var(--panel); }
-.mn-meta { font: .72rem/1.3 ui-monospace, monospace; color: var(--ink-3); margin-bottom: .12rem; }
+.mn-meta { font: .72rem/1.3 ui-monospace, monospace; color: var(--ink-3); margin-bottom: .22rem; }
 .mn-author { color: var(--ink-2); font-weight: 600; }
-.mn-text { white-space: pre-wrap; word-break: break-word; }
+.mn-text { white-space: pre-wrap; word-break: break-word; font-size: .92rem; line-height: 1.5; }
 .mn-msg textarea, .mn-reply {
   width: 100%; font: inherit; font-size: .92rem; color: var(--ink);
-  background: var(--field); border: 1px solid var(--line-2); border-radius: 8px;
-  padding: .4rem .5rem;
+  background: var(--field); border: 1px solid var(--line-2); border-radius: 7px;
+  padding: .5rem .6rem;
 }
 .mn-msg textarea { resize: vertical; }
 .mn-msg.draft textarea { border-color: var(--accent); }
@@ -183,6 +203,7 @@ mark.mn-hl {
 .mn-msg-actions { display: flex; justify-content: flex-end; margin-top: .35rem; }
 .mn-replybox { display: flex; gap: .4rem; align-items: stretch; }
 .mn-replybox .mn-reply { flex: 1; min-width: 0; }
+.mn-replybox .mn-btn { white-space: nowrap; }
 
 /* selection toolbar */
 .mn-tools, .mn-mark-tools { position: absolute; z-index: 30; transform: translateY(-120%);
@@ -715,21 +736,27 @@ mark.mn-hl.hl-strike { background: transparent;
     av.style.background = colorFor(entry.author); av.textContent = monogram(entry.author);
     var body = document.createElement('div'); body.className = 'mn-msg-body';
     var meta = document.createElement('div'); meta.className = 'mn-meta';
-    var who = document.createElement('span'); who.className = 'mn-author'; who.textContent = entry.author;
-    meta.appendChild(who);
-    if (entry.draft) meta.appendChild(document.createTextNode(' · draft'));
-    else if (entry.ts) meta.appendChild(document.createTextNode(' · ' + relTime(entry.ts)));
+    if (entry.draft) {
+      meta.textContent = index === 0 ? 'Write your comment' : 'Write your reply';
+    } else {
+      var who = document.createElement('span'); who.className = 'mn-author'; who.textContent = entry.author;
+      meta.appendChild(who);
+      if (entry.ts) meta.appendChild(document.createTextNode(' · ' + relTime(entry.ts)));
+    }
     body.appendChild(meta);
     var key = n.id + ':' + index;
     if (entry.draft || editing[key]) {
       var original = entry.body || '';
-      var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.dataset.entry = index; ta.rows = 2;
-      ta.value = original; ta.placeholder = index === 0 ? 'Write a comment…' : 'Write a reply…';
+      var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.dataset.entry = index;
+      ta.rows = entry.draft && index === 0 ? 3 : 2;
+      ta.value = original;
+      ta.placeholder = index === 0 ? 'What should change or be clarified?' : 'Reply to the discussion…';
       ta.setAttribute('aria-label', entry.draft ? 'Draft comment' : 'Edit comment');
       if (entry.draft) ta.addEventListener('input', function () { entry.body = ta.value; markDirty(); });
       body.appendChild(ta);
       var actions = document.createElement('div'); actions.className = 'mn-msg-actions';
       var primary = document.createElement('button'); primary.type = 'button'; primary.className = 'mn-save';
+      primary.classList.add('mn-primary');
       primary.textContent = entry.draft ? (index === 0 ? 'Post comment' : 'Post reply') : 'Save edit';
       primary.setAttribute('aria-label', primary.textContent + ' for ' + itemLabel(n));
       primary.addEventListener('click', function () {
@@ -774,6 +801,8 @@ mark.mn-hl.hl-strike { background: transparent;
     }
     shown.forEach(function (n) {
       var card = document.createElement('article'); card.className = 'mn-card'; card.dataset.note = n.id;
+      card.dataset.kind = n.kind || 'comment';
+      if (n.intent) card.dataset.intent = n.intent;
       var draftOpen = hasDraft(n);
       var isMark = n.kind !== 'comment' && !hasPostedThread(n) && !draftOpen;
       card.setAttribute('aria-label', itemLabel(n));
@@ -813,22 +842,26 @@ mark.mn-hl.hl-strike { background: transparent;
         resolveBtn.setAttribute('aria-label', n.resolved ? 'Reopen ' + itemLabel(n) : 'Resolve ' + itemLabel(n));
         resolveBtn.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
       }
-      var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = '🗑';
+      var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = 'Delete';
       delBtn.setAttribute('aria-label', 'Delete ' + itemLabel(n));
       delBtn.addEventListener('click', function () { removeNote(n); });
       if (isMark) {
         var talkBtn = document.createElement('button'); talkBtn.className = 'mn-icon';
-        talkBtn.textContent = '💬'; talkBtn.setAttribute('aria-label', 'Comment on this mark');
+        talkBtn.textContent = 'Add comment'; talkBtn.setAttribute('aria-label', 'Comment on this mark');
         talkBtn.addEventListener('click', function () { openDraftForNote(n); });
         head.appendChild(talkBtn);
       }
       head.appendChild(delBtn);
       card.appendChild(head);
 
-      if ((unanchored || changed || isMark) && n.anchor && n.anchor.quote) {
+      if (!n.resolved && n.anchor && n.anchor.quote) {
         var qt = n.anchor.quote;
-        if (isMark && qt.length > 80) qt = qt.slice(0, 77) + '…';
-        var q = document.createElement('div'); q.className = 'mn-quote'; q.textContent = '“' + qt + '”';
+        if (qt.length > 160) qt = qt.slice(0, 157) + '…';
+        var q = document.createElement('div'); q.className = 'mn-quote';
+        var quoteKicker = document.createElement('span'); quoteKicker.className = 'mn-quote-kicker';
+        quoteKicker.textContent = unanchored || changed ? 'Original selection' : 'Selected text';
+        q.appendChild(quoteKicker);
+        q.appendChild(document.createTextNode('“' + qt + '”'));
         card.appendChild(q);
       }
 
@@ -857,7 +890,7 @@ mark.mn-hl.hl-strike { background: transparent;
           cav.style.background = colorFor(currentAuthor()); cav.textContent = monogram(currentAuthor());
           var replyBox = document.createElement('div'); replyBox.className = 'mn-replybox';
           var reply = document.createElement('input'); reply.type = 'text'; reply.className = 'mn-reply';
-          reply.placeholder = 'Reply…'; reply.setAttribute('aria-label', 'Reply to ' + itemLabel(n));
+          reply.placeholder = 'Reply to this discussion…'; reply.setAttribute('aria-label', 'Reply to ' + itemLabel(n));
           var sendReply = function () {
             var text = reply.value.trim(); if (!text) { reply.focus(); return; }
             n.thread.push({ author: currentAuthor(), ts: new Date().toISOString(), body: text });
@@ -868,7 +901,8 @@ mark.mn-hl.hl-strike { background: transparent;
             e.preventDefault(); sendReply();
           });
           var replyBtn = document.createElement('button'); replyBtn.type = 'button'; replyBtn.className = 'mn-btn';
-          replyBtn.textContent = 'Reply'; replyBtn.addEventListener('click', sendReply);
+          replyBtn.classList.add('mn-primary');
+          replyBtn.textContent = 'Post reply'; replyBtn.addEventListener('click', sendReply);
           replyBox.appendChild(reply); replyBox.appendChild(replyBtn);
           composer.appendChild(cav); composer.appendChild(replyBox);
           conv.appendChild(composer);
