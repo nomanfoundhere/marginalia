@@ -43,7 +43,7 @@ html[data-theme="dark"] {
   --hl-critical: #622b39; --hl-important: #6d5a12; --hl-refinement: #2b426d; --hl-delete: #394453;
 }
 
-:root { --rail: clamp(19rem, 25vw, 23rem); }
+:root { --rail: clamp(22rem, 30vw, 28rem); }
 
 body {
   margin: 0; background: var(--desk); color: var(--ink);
@@ -97,7 +97,7 @@ body {
 
 /* --- layout: centred reading column + anchored rail --- */
 .layout {
-  display: grid; grid-template-columns: minmax(0, 70ch) minmax(18rem, var(--rail));
+  display: grid; grid-template-columns: minmax(0, 70ch) minmax(22rem, var(--rail));
   gap: clamp(1.5rem, 3vw, 3.5rem); justify-content: center; align-items: start;
   padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2rem) 5rem;
 }
@@ -132,11 +132,11 @@ mark.mn-hl {
 
 #margin-rail { min-width: 0; }
 .mn-rail-controls { position: sticky; top: 4.2rem; z-index: 4; padding: .25rem 0 .75rem; background: var(--desk); }
-.mn-rail-label { display: flex; align-items: center; justify-content: space-between; margin: 0 0 .45rem;
+.mn-rail-label { display: flex; align-items: center; justify-content: center; margin: 0 0 .45rem;
   color: var(--ink-3); font: 700 .68rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing: .09em; text-transform: uppercase; }
-.mn-tabs { display: flex; gap: .3rem; overflow-x: auto; padding-bottom: .15rem; }
-.mn-tab { flex: 0 0 auto; border: 1px solid transparent; border-radius: 5px; padding: .35rem .45rem;
+.mn-tabs { display: flex; justify-content: center; flex-wrap: wrap; gap: .3rem; padding-bottom: .15rem; }
+.mn-tab { flex: 0 0 auto; border: 1px solid transparent; border-radius: 5px; padding: .4rem .58rem;
   background: transparent; color: var(--ink-3); cursor: pointer; font: 650 .72rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
 .mn-tab:hover { color: var(--ink); background: var(--field); }
 .mn-tab[aria-selected="true"] { color: var(--ink); border-color: var(--line-2); background: var(--panel); }
@@ -191,25 +191,25 @@ mark.mn-hl {
 .mn-card.active .mn-row-summary, .mn-card.active .mn-row-quote { display: none; }
 .mn-priority { color: var(--card-accent); }
 .mn-card-foot { display: flex; justify-content: flex-end; gap: .4rem;
-  margin-top: .8rem; padding-top: .65rem; border-top: 1px solid var(--line); }
+  margin-top: .45rem; padding-top: .2rem; }
 .mn-resolve-action { color: var(--ink-2); font-size: .78rem; box-shadow: none; }
-.mn-thread-toggle { margin-left: 36px; align-self: flex-start; }
+.mn-thread-toggle { margin-left: .8rem; align-self: flex-start; }
 .mn-open-note { margin-left: auto; color: var(--ink-3); }
 .mn-card.active .mn-open-note { display: none; }
 .mn-reattach { color: var(--card-accent); font-size: .78rem; }
 
-/* conversation: continuous connector line behind the avatars */
-.mn-conv { position: relative; display: flex; flex-direction: column; gap: .85rem; }
-.mn-conv::before { content: ""; position: absolute; left: 14px; top: 14px; bottom: 14px;
-  width: 2px; background: var(--line-2); transform: translateX(-50%); z-index: 0; }
-.mn-msg, .mn-composer { display: grid; grid-template-columns: 28px 1fr; gap: .55rem;
-  align-items: start; position: relative; z-index: 1; }
-.mn-avatar { width: 28px; height: 28px; border-radius: 50%; flex: none;
-  display: grid; place-items: center; color: #fff;
-  font: 600 .75rem/1 ui-monospace, monospace;
-  box-shadow: 0 0 0 2px var(--panel); }
-.mn-meta { font: .72rem/1.3 ui-monospace, monospace; color: var(--ink-3); margin-bottom: .22rem; }
-.mn-author { color: var(--ink-2); font-weight: 600; }
+/* Conversation hierarchy comes from the reply's position, not an avatar rail. */
+.mn-conv { display: flex; flex-direction: column; gap: .72rem; }
+.mn-msg { min-width: 0; }
+.mn-msg.is-reply { margin-left: .9rem; padding-left: .75rem; }
+.mn-meta { display: flex; align-items: baseline; gap: .35rem; color: var(--ink-3);
+  font: .74rem/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  margin-bottom: .24rem; }
+.mn-author-stamp { display: inline-flex; align-items: stretch; overflow: hidden;
+  border: 1px solid var(--line); border-radius: 4px; background: var(--field); }
+.mn-author-glyph { display: grid; place-items: center; min-width: 1.35rem; padding: 0 .18rem;
+  color: #fff; font: 700 .68rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.mn-author { padding: .18rem .38rem; color: var(--ink-2); font-weight: 650; }
 .mn-text { white-space: pre-wrap; word-break: break-word; font-size: .92rem; line-height: 1.5; }
 .mn-msg textarea, .mn-reply {
   width: 100%; font: inherit; font-size: .92rem; color: var(--ink);
@@ -219,7 +219,12 @@ mark.mn-hl {
 .mn-msg textarea { resize: vertical; }
 .mn-msg.draft textarea { border-color: var(--accent); }
 .mn-reply { resize: none; }
-.mn-msg-actions { display: flex; justify-content: flex-end; margin-top: .35rem; }
+.mn-msg-actions { display: flex; justify-content: flex-start; margin-top: .3rem; }
+.mn-msg-actions .mn-btn { color: var(--ink-3); font-size: .78rem; box-shadow: none; }
+.mn-composer { display: flex; flex-direction: column; gap: .35rem; padding: .6rem;
+  background: var(--field); border: 1px solid var(--line); border-radius: 7px; }
+.mn-composer-label { color: var(--ink-3); font: 650 .67rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .06em; text-transform: uppercase; }
 .mn-replybox { display: flex; gap: .4rem; align-items: stretch; }
 .mn-replybox .mn-reply { flex: 1; min-width: 0; }
 .mn-replybox .mn-btn { white-space: nowrap; }
@@ -766,15 +771,18 @@ mark.mn-hl.is-muted { opacity: .28; }
   function messageRow(n, entry, index) {
     var row = document.createElement('div'); row.className = 'mn-msg';
     if (entry.draft) row.classList.add('draft');
-    var av = document.createElement('span'); av.className = 'mn-avatar';
-    av.style.background = colorFor(entry.author); av.textContent = monogram(entry.author);
+    if (index > 0 && !entry.draft) row.classList.add('is-reply');
     var body = document.createElement('div'); body.className = 'mn-msg-body';
     var meta = document.createElement('div'); meta.className = 'mn-meta';
     if (entry.draft) {
-      meta.textContent = index === 0 ? 'Write your comment' : 'Write your reply';
+      meta.textContent = index === 0 ? 'New comment' : 'Reply';
     } else {
+      var stamp = document.createElement('span'); stamp.className = 'mn-author-stamp';
+      stamp.setAttribute('aria-label', 'Reviewer: ' + entry.author);
+      var glyph = document.createElement('span'); glyph.className = 'mn-author-glyph';
+      glyph.style.background = colorFor(entry.author); glyph.textContent = monogram(entry.author);
       var who = document.createElement('span'); who.className = 'mn-author'; who.textContent = entry.author;
-      meta.appendChild(who);
+      stamp.appendChild(glyph); stamp.appendChild(who); meta.appendChild(stamp);
       if (entry.ts) meta.appendChild(document.createTextNode(' · ' + relTime(entry.ts)));
     }
     body.appendChild(meta);
@@ -821,7 +829,7 @@ mark.mn-hl.is-muted { opacity: .28; }
         editActions.appendChild(edit); body.appendChild(editActions);
       }
     }
-    row.appendChild(av); row.appendChild(body);
+    row.appendChild(body);
     return row;
   }
 
@@ -958,8 +966,8 @@ mark.mn-hl.is-muted { opacity: .28; }
 
         if (!draftOpen) {
           var composer = document.createElement('div'); composer.className = 'mn-composer';
-          var cav = document.createElement('span'); cav.className = 'mn-avatar';
-          cav.style.background = colorFor(currentAuthor()); cav.textContent = monogram(currentAuthor());
+          var composerLabel = document.createElement('div'); composerLabel.className = 'mn-composer-label';
+          composerLabel.textContent = 'Add a reply';
           var replyBox = document.createElement('div'); replyBox.className = 'mn-replybox';
           var reply = document.createElement('input'); reply.type = 'text'; reply.className = 'mn-reply';
           reply.placeholder = 'Reply to this discussion…'; reply.setAttribute('aria-label', 'Reply to ' + itemLabel(n));
@@ -976,7 +984,7 @@ mark.mn-hl.is-muted { opacity: .28; }
           replyBtn.classList.add('mn-primary');
           replyBtn.textContent = 'Post reply'; replyBtn.addEventListener('click', sendReply);
           replyBox.appendChild(reply); replyBox.appendChild(replyBtn);
-          composer.appendChild(cav); composer.appendChild(replyBox);
+          composer.appendChild(composerLabel); composer.appendChild(replyBox);
           conv.appendChild(composer);
         }
         card.appendChild(conv);

@@ -1,0 +1,12 @@
+{
+  "name": "marginalia",
+  "displayName": "Marginalia",
+  "version": "0.1.0",
+  "description": "Offline Markdown review with source-addressed AI feedback.",
+  "author": {
+    "name": "Aeva"
+  },
+  "license": "MIT",
+  "keywords": ["markdown", "review", "annotations", "offline", "ai"],
+  "skills": "./skills/"
+}

@@ -1,6 +1,7 @@
 *-view.html
 *.pyc
 __pycache__/
+.pytest_cache/
 marginalia-probe.txt
 .DS_Store
 .claude/

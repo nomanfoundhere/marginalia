@@ -1,72 +1,127 @@
-# Margin Notes
+# Marginalia
 
-Zero-server, single-file Markdown annotation. Bake a `.md` into a self-contained
-`-view.html`, highlight spans and leave margin notes in any Chromium browser
-(verified in Helium), save in place, and pull the feedback back as a digest.
+Marginalia turns a Markdown file into a self-contained review document. A reviewer
+opens one HTML file, selects exact text, records priority feedback or deletions,
+and sends the file back. The receiving agent gets source addresses, intent, and
+threaded discussion without re-ingesting the whole document as review context.
 
-The viewer ships two themes (it follows your OS preference and remembers a
-manual toggle), aligns each note card to its highlight in the margin, and
-fetches nothing at runtime — system fonts only, no network, fully offline.
+The viewer is offline and zero-server. It embeds the Markdown snapshot and review
+ledger directly in the HTML, fetches nothing at runtime, and uses system fonts.
 
-Each note opens as a draft with an explicit Post button, then becomes a thread:
-reviewers reply, resolve, delete, or edit their own messages. A reviewer sets a
-name once through an inline chip (no browser prompt), and a colored monogram then
-marks every message they leave. A note whose quoted text no longer matches the
-document stays visible as unanchored, retaining its original quote instead of
-vanishing; select its replacement span and reattach it.
+## Review Loop
 
-Selecting text offers Critical, Important, Refinement, and Strike. Critical,
-Important, and Refinement create a priority note and apply its matching red,
-amber, or blue highlight. Strike is a standalone deletion instruction. There are
-no wordless highlights: every coloured span has review intent. The margin filters
-All, Critical, Important, Refinements, and Deletions; one note expands into a
-replyable discussion while the rest remain compact, source-aligned rows. Keys
-`1`, `2`, `3`, and `X` create Critical, Important, Refinement, and Strike from a
-live selection.
+```text
+plan.md -> plan-view.html -> reviewer -> digest or revision packet -> revised plan.md
+```
 
-The collect step groups feedback by priority and deletion, prints each item with
-its source line address, states whether the `.md` has moved since the review, and
-writes a git-friendly `<doc>.notes.json` sidecar. `--packet` emits the same review
-as compact structured operations for an AI that can read the source file. Separate
-reviewers can merge matching sidecars with `merge-ledgers.py`, then apply the
-merged ledger back into the matching view.
+1. Bake a source file:
 
-<!-- SCREENSHOT: light theme — docs/screenshots/light.png (capture in a browser) -->
-<!-- SCREENSHOT: dark theme  — docs/screenshots/dark.png  (capture in a browser) -->
-<!-- DEMO: short gif/mp4 of select → note → save → collect round-trip -->
-> _Screenshots and demo are captured in a browser and added before release._
+   ```sh
+   python3 build-view.py plan.md
+   ```
 
-## Browser support
-Saving in place uses the [File System Access API][fsa], so the file overwrites
-itself with no re-download:
+2. Open `plan-view.html` in a browser. Chromium browsers, including Helium, can
+   save it in place after the reviewer drags the file onto its own window once.
+   Firefox and Safari fall back to a downloaded replacement file.
 
-- **Chromium (Chrome, Edge, Helium, Brave, …):** full in-place save. Arm it
-  once by dragging the file onto its own window (or picking it once — the
-  bar shows the exact path); after that it is a single click.
-- **Firefox / Safari:** the API is unavailable, so Save falls back to a normal
-  download of the updated `-view.html`, which you keep in place of the original.
+3. Select a span and choose a review signal:
 
-Autosave to local storage, the unsaved-changes guard, and ⌘S work everywhere.
+   | Signal | Meaning | Shortcut |
+   | --- | --- | --- |
+   | Critical | Mission-critical correction | `1` |
+   | Important | Fix before another unnecessary iteration | `2` |
+   | Refinement | Low-risk polish or clarification | `3` |
+   | Strike | Delete the selected text | `X` |
 
-[fsa]: https://developer.mozilla.org/en-US/docs/Web/API/File_System_API
+   Priority notes automatically colour their source span. Strike creates a direct
+   deletion operation. Every coloured span has an explicit review intent.
 
-## Install the skills
-Symlink the three skills into your Claude Code skills directory:
+4. Post the comment, reply in the focused discussion when needed, then save the
+   view. The review queue filters Critical, Important, Refinements, and Deletions.
 
-    ln -s "$PWD/skills/margin-send"    ~/.claude/skills/margin-send
-    ln -s "$PWD/skills/margin-collect" ~/.claude/skills/margin-collect
-    ln -s "$PWD/skills/margin-merge"   ~/.claude/skills/margin-merge
+5. Collect the feedback:
 
-## Round-trip
-1. `/margin-send plan.md` — builds `plan-view.html`, opens it in Helium.
-2. Reviewer selects text → Critical, Important, Refinement, or Strike → Post
-   comment → Save. Passes the one file on; it accumulates each reviewer's notes.
-3. `/margin-collect plan-view.html` — distills unresolved notes; use
-   `python3 distill.py --packet plan-view.html` when the receiving AI can read
-   `plan.md` directly, then regenerate after revision.
-4. `/margin-merge reviewer-a.notes.json reviewer-b.notes.json --view plan-view.html`
-   merges parallel reviews against the same source snapshot.
+   ```sh
+   python3 distill.py plan-view.html
+   python3 distill.py --packet plan-view.html
+   ```
 
-## Tests
-    node --test tests/*.mjs     # JS: anchoring, reconstruction, vendor
-    python3 -m pytest tests/    # Python: build-view, distill
+   The digest is human-readable. The revision packet is structured JSON for an
+   agent that can read the current Markdown source. Neither duplicates the full
+   source text merely to carry the review.
+
+6. Revise the Markdown, then bake it again. Existing notes carry forward. A span
+   whose reviewed text no longer locates stays visible as `text changed`; select
+   the replacement span in the viewer and use Reattach instead of guessing.
+
+## Review Data
+
+The HTML file is the review artifact passed between people. Running `distill.py`
+also writes `<doc>.notes.json`, a git-friendly ledger with the document hash,
+notes, and extraction time. Commit sidecars when review history belongs in the
+repository.
+
+Parallel reviews merge without overwriting one another:
+
+```sh
+python3 merge-ledgers.py reviewer-a.notes.json reviewer-b.notes.json \
+  --out plan.notes.json --view plan-view.html
+```
+
+The merge accepts only sidecars for the same Markdown snapshot. Independent notes
+are preserved, shared threads union by entry ID, and a note remains open until all
+copies resolve it.
+
+## Agent Skills
+
+Marginalia is a set of agent skills packaged as a Claude Code plugin. The same
+canonical skill folders also install directly into Codex:
+
+```sh
+./scripts/install-agent-skills.sh
+```
+
+The installer creates symlinks and refuses to replace an existing local skill.
+Restart the relevant agent after installation.
+
+| Agent | Installed form | Commands |
+| --- | --- | --- |
+| Claude Code | Local `marginalia` plugin | `/margin-send`, `/margin-collect`, `/margin-merge` |
+| Codex | Direct local skills | `margin-send`, `margin-collect`, `margin-merge` |
+
+For a one-off Claude Code session without installation:
+
+```sh
+claude --plugin-dir "$PWD"
+```
+
+## Browser Behaviour
+
+The viewer follows the operating-system theme by default and remembers a manual
+theme choice. It autosaves locally, warns before closing with unsaved work, and
+supports `Cmd+S`.
+
+Chromium’s File System Access API controls in-place saving. The browser chooses
+the first-save folder, but after the view is armed with its own file handle, later
+saves write directly back to that file. The viewer cannot override Chromium’s
+folder-picker policy.
+
+## Repository Layout
+
+```text
+build-view.py       bake Markdown into a standalone viewer
+template.html       viewer UI and embedded client logic
+distill.py          digest, packet, staleness, and sidecar output
+merge-ledgers.py    merge parallel sidecars safely
+margin_anchor.py    quote anchoring and Markdown source mapping
+skills/             send, collect, and merge workflows for agents
+samples/            maintained Markdown example
+tests/              Python and Node verification
+```
+
+## Verification
+
+```sh
+python3 -m pytest tests/
+node --test tests/*.mjs
+```
