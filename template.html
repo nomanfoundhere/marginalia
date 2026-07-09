@@ -174,6 +174,8 @@ mark.mn-hl {
 .mn-msg textarea { resize: vertical; }
 .mn-reply { resize: none; }
 .mn-msg-actions { display: flex; justify-content: flex-end; margin-top: .35rem; }
+.mn-replybox { display: flex; gap: .4rem; align-items: stretch; }
+.mn-replybox .mn-reply { flex: 1; min-width: 0; }
 
 /* selection toolbar */
 .mn-tools { position: absolute; z-index: 30; transform: translateY(-120%);
@@ -497,13 +499,19 @@ mark.mn-hl.hl-strike { background: transparent;
   });
 
   function createNote(anchor) {
-    var id = 'n' + (++seq);
     var author = currentAuthor();
+    var existing = matchingMarkedNote(anchor);
+    if (existing) {
+      var draftIndex = ensureDraft(existing, author);
+      paintHighlights(); renderRail(); markDirty(); focusDraft(existing.id, draftIndex);
+      return;
+    }
+    var id = 'n' + (++seq);
     var note = { id: id, author: author, kind: 'comment', color: colorFor(author), created: new Date().toISOString(),
-      anchor: anchor, thread: [{ author: author, ts: new Date().toISOString(), body: '' }], resolved: false };
+      anchor: anchor, thread: [draftEntry(author)], resolved: false };
     state.notes.push(note);
     paintHighlights(); renderRail(); markDirty();
-    var ta = rail.querySelector('[data-edit="' + id + '"]'); if (ta) ta.focus();
+    focusDraft(id, 0);
   }
 
   function createMark(anchor, kind, color) {
@@ -512,6 +520,38 @@ mark.mn-hl.hl-strike { background: transparent;
     if (color) note.color = color;
     state.notes.push(note);
     paintHighlights(); renderRail(); markDirty();
+  }
+
+  function draftEntry(author) {
+    return { author: author, ts: new Date().toISOString(), body: '', draft: true };
+  }
+  function hasDraft(n) {
+    return (n.thread || []).some(function (e) { return e.draft; });
+  }
+  function hasPostedThread(n) {
+    return (n.thread || []).some(function (e) { return !e.draft && (e.body || '').trim(); });
+  }
+  function ensureDraft(n, author) {
+    if (!n.thread) n.thread = [];
+    for (var i = 0; i < n.thread.length; i++) {
+      if (n.thread[i].draft && isMine(n.thread[i].author)) return i;
+    }
+    n.thread.push(draftEntry(author));
+    return n.thread.length - 1;
+  }
+  function focusDraft(id, index) {
+    var ta = rail.querySelector('[data-edit="' + id + '"][data-entry="' + index + '"]');
+    if (ta) ta.focus();
+  }
+  function matchingMarkedNote(anchor) {
+    var idx = globalThis.MarginCore.locateAnchor(flatText(), anchor);
+    if (idx < 0) return null;
+    for (var i = 0; i < state.notes.length; i++) {
+      var n = state.notes[i];
+      if (n.resolved || n.kind === 'comment' || !n.anchor) continue;
+      if (n._located === idx && n.anchor.quote && n.anchor.quote.length === anchor.quote.length) return n;
+    }
+    return null;
   }
 
   // --- repaint highlights from anchors ---
@@ -545,6 +585,7 @@ mark.mn-hl.hl-strike { background: transparent;
 
   // --- threaded rail ---
   var hideResolved = false;
+  var editing = {};
 
   function noteLabel(id) {
     var n = parseInt(String(id || '').replace(/\D/g, ''), 10);
@@ -559,24 +600,48 @@ mark.mn-hl.hl-strike { background: transparent;
     var meta = document.createElement('div'); meta.className = 'mn-meta';
     var who = document.createElement('span'); who.className = 'mn-author'; who.textContent = entry.author;
     meta.appendChild(who);
-    if (entry.ts) meta.appendChild(document.createTextNode(' · ' + relTime(entry.ts)));
+    if (entry.draft) meta.appendChild(document.createTextNode(' · draft'));
+    else if (entry.ts) meta.appendChild(document.createTextNode(' · ' + relTime(entry.ts)));
     body.appendChild(meta);
-    // Editable iff the entry is mine; everyone else's renders as static text.
-    if (isMine(entry.author)) {
-      var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.rows = 2;
-      ta.value = entry.body; ta.placeholder = 'Your note…';
-      ta.setAttribute('aria-label', 'Edit your note');
-      ta.addEventListener('input', function () { entry.body = ta.value; markDirty(); });
+    var key = n.id + ':' + index;
+    if (entry.draft || editing[key]) {
+      var original = entry.body || '';
+      var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.dataset.entry = index; ta.rows = 2;
+      ta.value = original; ta.placeholder = index === 0 ? 'Write a comment…' : 'Write a reply…';
+      ta.setAttribute('aria-label', entry.draft ? 'Draft comment' : 'Edit comment');
+      if (entry.draft) ta.addEventListener('input', function () { entry.body = ta.value; markDirty(); });
       body.appendChild(ta);
       var actions = document.createElement('div'); actions.className = 'mn-msg-actions';
-      var post = document.createElement('button'); post.type = 'button'; post.className = 'mn-btn';
-      post.textContent = index === 0 ? 'Comment' : 'Save edit';
-      post.setAttribute('aria-label', post.textContent + ' for ' + noteLabel(n.id));
-      post.addEventListener('click', function () { entry.body = ta.value; markDirty(); ta.blur(); });
-      actions.appendChild(post); body.appendChild(actions);
+      var primary = document.createElement('button'); primary.type = 'button'; primary.className = 'mn-save';
+      primary.textContent = entry.draft ? (index === 0 ? 'Post comment' : 'Post reply') : 'Save edit';
+      primary.setAttribute('aria-label', primary.textContent + ' for ' + noteLabel(n.id));
+      primary.addEventListener('click', function () {
+        var text = ta.value.trim(); if (!text) { ta.focus(); return; }
+        entry.body = text; entry.ts = new Date().toISOString(); delete entry.draft; delete editing[key];
+        renderRail(); markDirty();
+      });
+      var cancel = document.createElement('button'); cancel.type = 'button'; cancel.className = 'mn-btn';
+      cancel.textContent = 'Cancel';
+      cancel.addEventListener('click', function () {
+        if (entry.draft) {
+          n.thread.splice(index, 1);
+          if (n.kind === 'comment' && !n.thread.length) state.notes = state.notes.filter(function (x) { return x !== n; });
+          paintHighlights(); renderRail(); markDirty();
+        } else {
+          delete editing[key]; renderRail();
+        }
+      });
+      actions.appendChild(primary); actions.appendChild(cancel); body.appendChild(actions);
     } else {
       var p = document.createElement('div'); p.className = 'mn-text'; p.textContent = entry.body;
       body.appendChild(p);
+      if (isMine(entry.author)) {
+        var editActions = document.createElement('div'); editActions.className = 'mn-msg-actions';
+        var edit = document.createElement('button'); edit.type = 'button'; edit.className = 'mn-btn';
+        edit.textContent = 'Edit'; edit.setAttribute('aria-label', 'Edit comment for ' + noteLabel(n.id));
+        edit.addEventListener('click', function () { editing[key] = true; renderRail(); focusDraft(n.id, index); });
+        editActions.appendChild(edit); body.appendChild(editActions);
+      }
     }
     row.appendChild(av); row.appendChild(body);
     return row;
@@ -593,7 +658,8 @@ mark.mn-hl.hl-strike { background: transparent;
     shown.forEach(function (n) {
       var card = document.createElement('article'); card.className = 'mn-card'; card.dataset.note = n.id;
       card.setAttribute('aria-label', noteLabel(n.id));
-      var isMark = n.kind !== 'comment' && (!n.thread || !n.thread.length);
+      var draftOpen = hasDraft(n);
+      var isMark = n.kind !== 'comment' && !hasPostedThread(n) && !draftOpen;
       if (isMark) card.classList.add('mark');
       var unanchored = !n.resolved && n._located < 0;
       if (n.resolved) card.classList.add('resolved');
@@ -617,10 +683,13 @@ mark.mn-hl.hl-strike { background: transparent;
       }
       if (changed) card.classList.add('changed');
       var grow = document.createElement('span'); grow.className = 'grow'; grow.style.flex = '1'; head.appendChild(grow);
-      var resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-icon mn-resolve';
-      resolveBtn.textContent = n.resolved ? 'Reopen ↺' : 'Resolve ✓';
-      resolveBtn.setAttribute('aria-label', n.resolved ? 'Reopen ' + noteLabel(n.id) : 'Resolve ' + noteLabel(n.id));
-      resolveBtn.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
+      var resolveBtn = null;
+      if (!draftOpen) {
+        resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-icon mn-resolve';
+        resolveBtn.textContent = n.resolved ? 'Reopen ↺' : 'Resolve ✓';
+        resolveBtn.setAttribute('aria-label', n.resolved ? 'Reopen ' + noteLabel(n.id) : 'Resolve ' + noteLabel(n.id));
+        resolveBtn.addEventListener('click', function () { n.resolved = !n.resolved; paintHighlights(); renderRail(); markDirty(); });
+      }
       var delBtn = document.createElement('button'); delBtn.className = 'mn-icon'; delBtn.textContent = '🗑';
       delBtn.setAttribute('aria-label', 'Delete note');
       delBtn.addEventListener('click', function () {
@@ -639,7 +708,8 @@ mark.mn-hl.hl-strike { background: transparent;
         });
         head.appendChild(talkBtn);
       }
-      head.appendChild(resolveBtn); head.appendChild(delBtn);
+      if (resolveBtn) head.appendChild(resolveBtn);
+      head.appendChild(delBtn);
       card.appendChild(head);
 
       if ((unanchored || changed || isMark) && n.anchor && n.anchor.quote) {
@@ -657,17 +727,22 @@ mark.mn-hl.hl-strike { background: transparent;
         var composer = document.createElement('div'); composer.className = 'mn-composer';
         var cav = document.createElement('span'); cav.className = 'mn-avatar';
         cav.style.background = colorFor(currentAuthor()); cav.textContent = monogram(currentAuthor());
+        var replyBox = document.createElement('div'); replyBox.className = 'mn-replybox';
         var reply = document.createElement('input'); reply.type = 'text'; reply.className = 'mn-reply';
-        reply.placeholder = 'Reply…'; reply.setAttribute('aria-label', 'Reply to note ' + n.id);
-        reply.addEventListener('keydown', function (e) {
-          if (e.key !== 'Enter') return;
-          e.preventDefault();
-          var text = reply.value.trim(); if (!text) return;
-          reply.value = '';
+        reply.placeholder = 'Reply…'; reply.setAttribute('aria-label', 'Reply to ' + noteLabel(n.id));
+        var sendReply = function () {
+          var text = reply.value.trim(); if (!text) { reply.focus(); return; }
           n.thread.push({ author: currentAuthor(), ts: new Date().toISOString(), body: text });
           renderRail(); markDirty();
+        };
+        reply.addEventListener('keydown', function (e) {
+          if (e.key !== 'Enter') return;
+          e.preventDefault(); sendReply();
         });
-        composer.appendChild(cav); composer.appendChild(reply);
+        var replyBtn = document.createElement('button'); replyBtn.type = 'button'; replyBtn.className = 'mn-btn';
+        replyBtn.textContent = 'Reply'; replyBtn.addEventListener('click', sendReply);
+        replyBox.appendChild(reply); replyBox.appendChild(replyBtn);
+        composer.appendChild(cav); composer.appendChild(replyBox);
         conv.appendChild(composer);
         card.appendChild(conv);
       }

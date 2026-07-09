@@ -35,6 +35,15 @@ def test_digest_omits_machine_fields():
     out = distill.digest(distill.extract_notes(_html(DATA)))
     assert "schemaVersion" not in out and "anchor" not in out
 
+def test_digest_omits_draft_thread_entries():
+    notes = [{"id": "n1", "author": "Aeva", "resolved": False,
+              "anchor": {"quote": "full timeline"},
+              "thread": [{"author": "Aeva", "body": "half written", "draft": True},
+                         {"author": "Aeva", "body": "posted"}]}]
+    out = distill.digest(distill.extract_notes(_html(notes)))
+    assert "posted" in out
+    assert "half written" not in out
+
 SRC_MD = "# Plan\n\nWe authenticate via twikit and pull the full timeline.\n"
 
 def _html_full(notes, source=SRC_MD, title="plan.md"):

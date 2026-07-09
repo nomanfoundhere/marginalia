@@ -81,6 +81,8 @@ def digest(data: dict, include_resolved: bool = False,
         lines.append('[%s · %s · %s%s]%s "%s"'
                      % (n.get("id", "?"), n.get("author", "?"), status, tag, addr, quote))
         for e in n.get("thread", []):
+            if e.get("draft"):
+                continue
             body = (e.get("body") or "").strip()
             if body:
                 lines.append("  %s: %s" % (e.get("author", "?"), body))
