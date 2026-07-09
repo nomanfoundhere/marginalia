@@ -362,24 +362,24 @@ mark.mn-hl.hl-strike { background: transparent;
   // --- identity (no native prompt) ---
   var me = '';
   try { me = localStorage.getItem('mn-reviewer') || ''; } catch (e) {}
-  var pendingAction = null;     // deferred create/reply, run once a name exists
   var idWrap, themeBtn, saveBtn, stateChip;
 
-  // Any action that authors content routes through here: if no name is set yet,
-  // the action is stored and the identity input is focused instead of a dialog.
-  function requireIdentity(cb) {
-    if (me) { cb(); return; }
-    pendingAction = cb;
-    openIdentityEditor();
+  function currentAuthor() { return me || 'Reviewer'; }
+  function isMine(author) { return author === me || (!me && author === 'Reviewer'); }
+  function adoptFallbackAuthor(name) {
+    state.notes.forEach(function (n) {
+      if (n.author === 'Reviewer') n.author = name;
+      (n.thread || []).forEach(function (entry) { if (entry.author === 'Reviewer') entry.author = name; });
+    });
   }
   function setIdentity(name) {
     name = (name || '').trim();
     if (!name) return false;
+    if (!me) adoptFallbackAuthor(name);
     me = name;
     try { localStorage.setItem('mn-reviewer', me); } catch (e) {}
     renderIdentity();
     paintHighlights(); renderRail();           // my entries become editable
-    if (pendingAction) { var f = pendingAction; pendingAction = null; f(); }
     return true;
   }
   function renderIdentity() {
@@ -388,8 +388,8 @@ mark.mn-hl.hl-strike { background: transparent;
     chip.type = 'button'; chip.className = 'mn-chip';
     chip.setAttribute('aria-label', me ? 'Change your reviewer name' : 'Set your reviewer name');
     var dot = document.createElement('span'); dot.className = 'mn-dot';
-    if (me) dot.style.background = colorFor(me);
-    var label = document.createElement('span'); label.textContent = me || 'Set your name';
+    dot.style.background = colorFor(currentAuthor());
+    var label = document.createElement('span'); label.textContent = me || 'Reviewer';
     chip.appendChild(dot); chip.appendChild(label);
     chip.addEventListener('click', openIdentityEditor);
     idWrap.appendChild(chip);
@@ -474,7 +474,7 @@ mark.mn-hl.hl-strike { background: transparent;
     btn.addEventListener('mousedown', function (e) {
       e.preventDefault();
       var anchor = anchorFromSelection();
-      requireIdentity(function () { fn(anchor); });
+      fn(anchor);
     });
   }
   ['yellow', 'green', 'pink'].forEach(function (c) {
@@ -498,15 +498,16 @@ mark.mn-hl.hl-strike { background: transparent;
 
   function createNote(anchor) {
     var id = 'n' + (++seq);
-    var note = { id: id, author: me, kind: 'comment', color: colorFor(me), created: new Date().toISOString(),
-      anchor: anchor, thread: [{ author: me, ts: new Date().toISOString(), body: '' }], resolved: false };
+    var author = currentAuthor();
+    var note = { id: id, author: author, kind: 'comment', color: colorFor(author), created: new Date().toISOString(),
+      anchor: anchor, thread: [{ author: author, ts: new Date().toISOString(), body: '' }], resolved: false };
     state.notes.push(note);
     paintHighlights(); renderRail(); markDirty();
     var ta = rail.querySelector('[data-edit="' + id + '"]'); if (ta) ta.focus();
   }
 
   function createMark(anchor, kind, color) {
-    var note = { id: 'n' + (++seq), author: me, kind: kind,
+    var note = { id: 'n' + (++seq), author: currentAuthor(), kind: kind,
       created: new Date().toISOString(), anchor: anchor, thread: [], resolved: false };
     if (color) note.color = color;
     state.notes.push(note);
@@ -561,7 +562,7 @@ mark.mn-hl.hl-strike { background: transparent;
     if (entry.ts) meta.appendChild(document.createTextNode(' · ' + relTime(entry.ts)));
     body.appendChild(meta);
     // Editable iff the entry is mine; everyone else's renders as static text.
-    if (entry.author === me) {
+    if (isMine(entry.author)) {
       var ta = document.createElement('textarea'); ta.dataset.edit = n.id; ta.rows = 2;
       ta.value = entry.body; ta.placeholder = 'Your note…';
       ta.setAttribute('aria-label', 'Edit your note');
@@ -632,11 +633,9 @@ mark.mn-hl.hl-strike { background: transparent;
         var talkBtn = document.createElement('button'); talkBtn.className = 'mn-icon';
         talkBtn.textContent = '💬'; talkBtn.setAttribute('aria-label', 'Comment on this mark');
         talkBtn.addEventListener('click', function () {
-          requireIdentity(function () {
-            n.thread.push({ author: me, ts: new Date().toISOString(), body: '' });
-            renderRail(); markDirty();
-            var ta = rail.querySelector('[data-edit="' + n.id + '"]'); if (ta) ta.focus();
-          });
+          n.thread.push({ author: currentAuthor(), ts: new Date().toISOString(), body: '' });
+          renderRail(); markDirty();
+          var ta = rail.querySelector('[data-edit="' + n.id + '"]'); if (ta) ta.focus();
         });
         head.appendChild(talkBtn);
       }
@@ -657,7 +656,7 @@ mark.mn-hl.hl-strike { background: transparent;
 
         var composer = document.createElement('div'); composer.className = 'mn-composer';
         var cav = document.createElement('span'); cav.className = 'mn-avatar';
-        cav.style.background = me ? colorFor(me) : 'var(--ink-3)'; cav.textContent = me ? monogram(me) : '+';
+        cav.style.background = colorFor(currentAuthor()); cav.textContent = monogram(currentAuthor());
         var reply = document.createElement('input'); reply.type = 'text'; reply.className = 'mn-reply';
         reply.placeholder = 'Reply…'; reply.setAttribute('aria-label', 'Reply to note ' + n.id);
         reply.addEventListener('keydown', function (e) {
@@ -665,10 +664,8 @@ mark.mn-hl.hl-strike { background: transparent;
           e.preventDefault();
           var text = reply.value.trim(); if (!text) return;
           reply.value = '';
-          requireIdentity(function () {
-            n.thread.push({ author: me, ts: new Date().toISOString(), body: text });
-            renderRail(); markDirty();
-          });
+          n.thread.push({ author: currentAuthor(), ts: new Date().toISOString(), body: text });
+          renderRail(); markDirty();
         });
         composer.appendChild(cav); composer.appendChild(reply);
         conv.appendChild(composer);
@@ -1075,12 +1072,10 @@ mark.mn-hl.hl-strike { background: transparent;
     if (k !== 'h' && k !== 'u' && k !== 's' && k !== 'c') return;
     e.preventDefault();
     var anchor = anchorFromSelection();
-    requireIdentity(function () {
-      if (k === 'h') createMark(anchor, 'highlight', lastColor);
-      else if (k === 'u') createMark(anchor, 'underline');
-      else if (k === 's') createMark(anchor, 'strike');
-      else createNote(anchor);
-    });
+    if (k === 'h') createMark(anchor, 'highlight', lastColor);
+    else if (k === 'u') createMark(anchor, 'underline');
+    else if (k === 's') createMark(anchor, 'strike');
+    else createNote(anchor);
   });
   window.addEventListener('beforeunload', function (e) {
     if (window.MN.isDirty()) { e.preventDefault(); e.returnValue = ''; }
