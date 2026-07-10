@@ -45,6 +45,7 @@ def test_digest_omits_draft_thread_entries():
     assert "half written" not in out
 
 SRC_MD = "# Plan\n\nWe authenticate via twikit and pull the full timeline.\n"
+SECTION_MD = "# Plan\n\n## Retry\n\nThe retry exits without a fallback.\n"
 
 def _html_full(notes, source=SRC_MD, title="plan.md"):
     npay = base64.b64encode(json.dumps({"schemaVersion": 2, "notes": notes}).encode()).decode()
@@ -178,6 +179,19 @@ def test_sidecar_written_next_to_view(tmp_path):
     assert len(side["sourceSha256"]) == 64
     assert "extractedAt" in side
 
+def test_sidecar_preserves_review_round_state(tmp_path):
+    view = tmp_path / "plan-view.html"
+    view.write_text(_html_full([]))
+    data = {
+        "schemaVersion": 3,
+        "notes": [],
+        "rounds": [{"id": "r1", "label": "Round 1", "startedAt": "2026-07-10T10:00:00Z"}],
+        "activeRoundId": "r1",
+    }
+    side = json.loads(pathlib.Path(distill.write_sidecar(str(view), data, SRC_MD, "plan.md")).read_text())
+    assert side["rounds"][0]["id"] == "r1"
+    assert side["activeRoundId"] == "r1"
+
 def test_revision_packet_carries_operation_priority_and_anchor():
     notes = [
         {"id": "n1", "author": "Aeva", "resolved": False, "kind": "comment",
@@ -202,3 +216,44 @@ def test_revision_packet_marks_changed_current_span_unlocated():
                                      current_source=SRC_MD.replace("full timeline", "entire history"))
     assert packet["document"]["currentSourceStatus"] == "diverged"
     assert packet["operations"][0]["spanStatus"] == "unlocated"
+
+def test_heading_path_tracks_markdown_hierarchy():
+    offset = SECTION_MD.index("retry exits")
+    assert distill.heading_path(SECTION_MD, offset) == ["Plan", "Retry"]
+
+def test_priority_filter_and_review_status_are_consistent():
+    notes = [
+        {"id": "n1", "kind": "comment", "priority": "critical", "resolved": False, "anchor": {}, "thread": []},
+        {"id": "n2", "kind": "comment", "priority": "important", "resolved": False, "anchor": {}, "thread": []},
+        {"id": "n3", "kind": "strike", "resolved": False, "anchor": {}, "thread": []},
+    ]
+    data = {"notes": notes}
+    status = distill.review_status(data, {"critical", "delete"})
+    assert status == {"open": 2, "resolved": 0, "total": 2,
+                      "byTag": {"critical": 1, "important": 0, "refinement": 0, "delete": 1}}
+    out = distill.digest(data, tags={"critical"})
+    assert "n1" in out and "n2" not in out and "n3" not in out
+
+def test_packet_carries_heading_paths_and_receipts():
+    notes = [{"id": "n1", "author": "Aeva", "resolved": False, "kind": "comment",
+              "priority": "important", "anchor": {"quote": "retry exits", "prefix": "The ", "suffix": " without"},
+              "thread": [], "roundId": "r1", "receipts": [{"id": "r1", "author": "Agent", "outcome": "applied",
+                                             "reason": "Named the fallback."}]}]
+    packet = distill.revision_packet({"notes": notes, "rounds": [{"id": "r1", "label": "Round 1"}],
+                                      "activeRoundId": "r1"}, source=SECTION_MD,
+                                      current_source=SECTION_MD, tags={"important"})
+    op = packet["operations"][0]
+    assert op["reviewedHeadingPath"] == ["Plan", "Retry"]
+    assert op["currentHeadingPath"] == ["Plan", "Retry"]
+    assert op["receipts"][0]["outcome"] == "applied"
+    assert op["reviewRoundLabel"] == "Round 1"
+    assert packet["document"]["reviewStatus"]["byTag"]["important"] == 1
+
+def test_parse_tags_accepts_deletions_alias_and_rejects_unknown_values():
+    assert distill.parse_tags(["--priority=critical,deletions"]) == {"critical", "delete"}
+    try:
+        distill.parse_tags(["--priority=urgent"])
+    except ValueError as error:
+        assert "--priority" in str(error)
+    else:
+        raise AssertionError("unknown priority should fail")

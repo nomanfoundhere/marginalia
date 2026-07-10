@@ -10,7 +10,7 @@ _spec.loader.exec_module(margin_anchor)
 TEMPLATE = "template.html"
 MARKED = "vendor/marked.min.js"
 CORE = "margin-core.js"
-EMPTY_NOTES = '{"schemaVersion":2,"notes":[]}'
+EMPTY_NOTES = '{"schemaVersion":3,"notes":[],"rounds":[{"id":"legacy-round","label":"Round 1","startedAt":null}],"activeRoundId":"legacy-round"}'
 
 NOTES_RE = re.compile(
     r'(<script id="margin-notes" type="text/plain">)(.*?)(</script>)', re.DOTALL)
@@ -45,7 +45,7 @@ def _stamp_src_checks(notes_b64: str, new_source: str) -> str:
         for n in notes:
             found = margin_anchor.locate_in_source(new_source, n.get("anchor") or {})
             n["srcCheck"] = "found" if found else "missing"
-        data["schemaVersion"] = 2
+        data["schemaVersion"] = 3
         return _b64(json.dumps(data, ensure_ascii=False))
     except Exception:
         return notes_b64

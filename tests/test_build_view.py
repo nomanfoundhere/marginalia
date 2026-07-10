@@ -47,7 +47,7 @@ def test_rebuild_carries_existing_notes_forward(tmp_path):
     html2 = out.read_text(encoding="utf-8")
     # ledger is carried forward and stamped with srcCheck on rebuild
     data = _read_payload(out)
-    assert data["schemaVersion"] == 2
+    assert data["schemaVersion"] == 3
     assert len(data["notes"]) == 1
     assert data["notes"][0]["id"] == "n1"
     assert "srcCheck" in data["notes"][0]
@@ -105,7 +105,7 @@ def test_rebuild_stamps_srccheck(tmp_path):
     view.write_text(html)
     build_view.build(str(doc), str(BASE))
     data = _read_payload(view)
-    assert data["schemaVersion"] == 2
+    assert data["schemaVersion"] == 3
     by_id = {n["id"]: n for n in data["notes"]}
     assert by_id["n1"]["srcCheck"] == "found"
     assert by_id["n2"]["srcCheck"] == "missing"

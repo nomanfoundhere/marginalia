@@ -64,6 +64,8 @@ LEGACY_PRIORITY = {
     "approved": "refinement",
 }
 PRIORITIES = {"critical", "important", "refinement"}
+TAGS = PRIORITIES | {"delete"}
+HEADING_RE = re.compile(r'^(#{1,6})\s+(.+?)(?:\s+#+)?\s*$', re.MULTILINE)
 
 GROUP_BY_TAG = {
     "critical": "Critical",
@@ -92,6 +94,45 @@ def note_group(n: dict, tag: str) -> str:
         return "Resolved"
     return GROUP_BY_TAG.get(tag, "Important")
 
+def heading_path(source: str, offset: int | None) -> list[str]:
+    if source is None or offset is None:
+        return []
+    levels = [None] * 6
+    for match in HEADING_RE.finditer(source):
+        if match.start() > offset:
+            break
+        level = len(match.group(1))
+        levels[level - 1] = match.group(2).strip()
+        for index in range(level, len(levels)):
+            levels[index] = None
+    return [title for title in levels if title]
+
+def review_status(data: dict, tags=None) -> dict:
+    wanted = set(tags or TAGS)
+    counts = {tag: 0 for tag in ("critical", "important", "refinement", "delete")}
+    resolved, total = 0, 0
+    for note in data.get("notes", []):
+        tag = note_tag(note)
+        if tag not in wanted:
+            continue
+        total += 1
+        if note.get("resolved"):
+            resolved += 1
+        else:
+            counts[tag] += 1
+    return {
+        "open": sum(counts.values()),
+        "resolved": resolved,
+        "total": total,
+        "byTag": counts,
+    }
+
+def round_label(data: dict, round_id):
+    for round in data.get("rounds") or []:
+        if round.get("id") == round_id:
+            return round.get("label") or "Round"
+    return None
+
 def _span_record(source: str, anchor: dict):
     if source is None:
         return None
@@ -105,7 +146,8 @@ def _span_record(source: str, anchor: dict):
     }
 
 def revision_packet(data: dict, source: str = None, doc_name: str = "source",
-                    current_source: str = None, include_resolved: bool = False) -> dict:
+                    current_source: str = None, include_resolved: bool = False,
+                    tags=None) -> dict:
     """A compact, deterministic handoff for an agent that can already read the
     Markdown source. It carries review intent and robust anchors, not a second
     copy of the document text."""
@@ -129,6 +171,9 @@ def revision_packet(data: dict, source: str = None, doc_name: str = "source",
                 comments.append({"author": entry.get("author", "?"), "body": body,
                                  "timestamp": entry.get("ts")})
         tag = note_tag(n)
+        if tags is not None and tag not in tags:
+            continue
+        reviewed_span = _span_record(source, anchor)
         current_span = _span_record(current_source, anchor)
         operations.append({
             "id": n.get("id", "?"),
@@ -136,13 +181,18 @@ def revision_packet(data: dict, source: str = None, doc_name: str = "source",
             "priority": None if tag == "delete" else tag,
             "status": "resolved" if n.get("resolved") else "open",
             "author": n.get("author", "?"),
+            "reviewRoundId": n.get("roundId"),
+            "reviewRoundLabel": round_label(data, n.get("roundId")),
             "anchor": {"quote": anchor.get("quote", ""),
                        "prefix": anchor.get("prefix", ""),
                        "suffix": anchor.get("suffix", "")},
-            "reviewedLocation": _span_record(source, anchor),
+            "reviewedLocation": reviewed_span,
             "currentLocation": current_span,
+            "reviewedHeadingPath": heading_path(source, reviewed_span["start"] if reviewed_span else None),
+            "currentHeadingPath": heading_path(current_source, current_span["start"] if current_span else None),
             "spanStatus": "located" if current_span else "unlocated",
             "comments": comments,
+            "receipts": list(n.get("receipts") or []),
         })
     return {
         "schemaVersion": 1,
@@ -152,12 +202,16 @@ def revision_packet(data: dict, source: str = None, doc_name: str = "source",
             "currentSourceSha256": (hashlib.sha256(current_source.encode("utf-8")).hexdigest()
                                     if current_source is not None else None),
             "currentSourceStatus": current_status,
+            "reviewStatus": review_status(data, tags),
+            "reviewRounds": data.get("rounds") or [],
+            "activeRoundId": data.get("activeRoundId"),
         },
         "operations": operations,
     }
 
 def digest(data: dict, include_resolved: bool = False,
-           source: str = None, doc_name: str = "source", context: int = 0, current_source: str = None) -> str:
+           source: str = None, doc_name: str = "source", context: int = 0,
+           current_source: str = None, tags=None) -> str:
     notes = data.get("notes", [])
     groups, shown = {}, 0
     for n in notes:
@@ -168,6 +222,8 @@ def digest(data: dict, include_resolved: bool = False,
         anchor = n.get("anchor") or {}
         quote = anchor.get("quote", "")
         tag = note_tag(n)
+        if tags is not None and tag not in tags:
+            continue
         addr, span = "", None
         if source is not None:
             span = margin_anchor.locate_in_source(source, anchor)
@@ -184,6 +240,16 @@ def digest(data: dict, include_resolved: bool = False,
             body = (e.get("body") or "").strip()
             if body:
                 item.append("  %s: %s" % (e.get("author", "?"), body))
+        if span:
+            path = heading_path(source, span[0])
+            if path:
+                item.append("  section: " + " > ".join(path))
+        for receipt in n.get("receipts") or []:
+            outcome = receipt.get("outcome", "recorded")
+            author = receipt.get("author", "Agent")
+            reason = (receipt.get("reason") or "").strip()
+            item.append("  receipt · %s · %s%s" % (outcome, author,
+                                                     (": " + reason) if reason else ""))
         if context and span:
             src_lines = source.splitlines()
             first = source.count("\n", 0, span[0]) + 1
@@ -203,8 +269,26 @@ def digest(data: dict, include_resolved: bool = False,
             lines.extend(item)
             lines.append("")
     scope = "" if include_resolved else " unresolved"
-    header = "%d%s note(s) of %d total" % (shown, scope, len(notes))
+    status = review_status(data, tags)
+    summary = "%d critical · %d important · %d refinements · %d deletions open" % (
+        status["byTag"]["critical"], status["byTag"]["important"],
+        status["byTag"]["refinement"], status["byTag"]["delete"])
+    header = "%d%s note(s) of %d total\nReview status: %s" % (shown, scope, len(notes), summary)
     return (header + "\n\n" + "\n".join(lines)).rstrip()
+
+def parse_tags(flags):
+    raw = [flag.split("=", 1)[1] for flag in flags if flag.startswith("--priority=")]
+    if not raw:
+        return None
+    tags = set()
+    aliases = {"deletions": "delete"}
+    for value in raw:
+        for part in value.split(","):
+            tag = aliases.get(part.strip().lower(), part.strip().lower())
+            if tag not in TAGS:
+                raise ValueError("--priority accepts critical, important, refinement, or delete")
+            tags.add(tag)
+    return tags
 
 def write_sidecar(view_path: str, data: dict, snapshot, doc_name: str):
     """Durable, git-diffable copy of the ledger. Derived output only: the view
@@ -216,6 +300,8 @@ def write_sidecar(view_path: str, data: dict, snapshot, doc_name: str):
                         .isoformat(timespec="seconds"),
         "schemaVersion": data.get("schemaVersion", 1),
         "notes": data.get("notes", []),
+        "rounds": data.get("rounds", []),
+        "activeRoundId": data.get("activeRoundId"),
     }
     p = pathlib.Path(view_path).resolve().parent / (
         pathlib.Path(doc_name).stem + ".notes.json")
@@ -231,7 +317,7 @@ if __name__ == "__main__":
     flags = [a for a in sys.argv[1:] if a.startswith("-")]
     args = [a for a in sys.argv[1:] if not a.startswith("-")]
     if len(args) != 1:
-        print("usage: distill.py [--all] [--context=N] [--source=PATH] [--packet] [--no-sidecar] <doc-view.html>", file=sys.stderr); sys.exit(2)
+        print("usage: distill.py [--all] [--context=N] [--source=PATH] [--priority=TAG[,TAG]] [--status] [--packet] [--no-sidecar] <doc-view.html>", file=sys.stderr); sys.exit(2)
     context = 0
     for f in flags:
         if f.startswith("--context="):
@@ -241,6 +327,10 @@ if __name__ == "__main__":
                 print("--context must be a non-negative integer", file=sys.stderr); sys.exit(2)
             if context < 0:
                 print("--context must be a non-negative integer", file=sys.stderr); sys.exit(2)
+    try:
+        tags = parse_tags(flags)
+    except ValueError as error:
+        print(error, file=sys.stderr); sys.exit(2)
     with open(args[0], encoding="utf-8") as f:
         html = f.read()
     data = extract_notes(html)
@@ -254,13 +344,17 @@ if __name__ == "__main__":
     current = None
     if src_path is not None:
         current = pathlib.Path(src_path).read_text(encoding="utf-8")
-    if "--packet" in flags:
+    if "--status" in flags:
+        out = json.dumps(review_status(data, tags), indent=2, ensure_ascii=False)
+    elif "--packet" in flags:
         out = json.dumps(revision_packet(data, source=snapshot, doc_name=doc_name,
-                                         current_source=current, include_resolved="--all" in flags),
+                                         current_source=current, include_resolved="--all" in flags,
+                                         tags=tags),
                          indent=2, ensure_ascii=False)
     else:
         out = digest(data, include_resolved="--all" in flags, source=snapshot,
-                     doc_name=doc_name, context=context, current_source=current)
+                     doc_name=doc_name, context=context, current_source=current,
+                     tags=tags)
         if snapshot is not None:
             out = staleness(snapshot, current) + "\n" + out
     if "--no-sidecar" not in flags:

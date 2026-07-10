@@ -41,7 +41,7 @@ if $install_claude; then
 fi
 
 if $install_codex; then
-  for skill in margin-send margin-collect margin-merge; do
+  for skill in margin-send margin-collect margin-merge margin-receipt; do
     link_skill "$HOME/.codex/skills/$skill" "$root/skills/$skill"
   done
 fi

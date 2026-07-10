@@ -45,12 +45,27 @@ def _merge_threads(left: dict, right: dict) -> list:
                 entries.append(copy.deepcopy(entry))
     return sorted(entries, key=lambda entry: (entry.get("ts") or "", entry.get("id") or ""))
 
+def _merge_receipts(left: dict, right: dict) -> list:
+    receipts = []
+    seen = set()
+    for note in (left, right):
+        for index, receipt in enumerate(note.get("receipts") or []):
+            key = receipt.get("id") or "legacy:%s" % _digest({
+                "note": note.get("id"), "index": index, "author": receipt.get("author"),
+                "outcome": receipt.get("outcome"), "recordedAt": receipt.get("recordedAt"),
+            })
+            if key not in seen:
+                seen.add(key)
+                receipts.append(copy.deepcopy(receipt))
+    return sorted(receipts, key=lambda receipt: (receipt.get("recordedAt") or "", receipt.get("id") or ""))
+
 def _later(left, right):
     return max(left or "", right or "") or None
 
 def merge_note(left: dict, right: dict) -> dict:
     merged = copy.deepcopy(left)
     merged["thread"] = _merge_threads(left, right)
+    merged["receipts"] = _merge_receipts(left, right)
     merged["resolved"] = bool(left.get("resolved") and right.get("resolved"))
     if merged["resolved"]:
         merged["resolvedAt"] = _later(left.get("resolvedAt"), right.get("resolvedAt"))
@@ -74,6 +89,16 @@ def _unique_conflict_id(note: dict, used: set) -> str:
         candidate = base + "-merge-" + _digest(note)[:8] + "-" + str(suffix)
         suffix += 1
     return candidate
+
+def _merge_rounds(ledgers: list[dict]) -> list:
+    rounds, seen = [], set()
+    for ledger in ledgers:
+        for round in ledger.get("rounds") or []:
+            round_id = str(round.get("id") or "")
+            if round_id and round_id not in seen:
+                seen.add(round_id)
+                rounds.append(copy.deepcopy(round))
+    return sorted(rounds, key=lambda round: (round.get("startedAt") or "", round.get("id") or ""))
 
 def merge_ledgers(ledgers: list[dict]) -> dict:
     if not ledgers:
@@ -101,12 +126,15 @@ def merge_ledgers(ledgers: list[dict]) -> dict:
                 note_id = candidate["id"]
             index_by_id[note_id] = len(merged_notes)
             merged_notes.append(candidate)
+    rounds = _merge_rounds(ledgers)
     return {
         "docName": doc_name,
         "sourceSha256": source_sha,
         "extractedAt": datetime.datetime.now(datetime.timezone.utc).isoformat(timespec="seconds"),
         "schemaVersion": max(int(ledger.get("schemaVersion", 1)) for ledger in ledgers),
         "notes": merged_notes,
+        "rounds": rounds,
+        "activeRoundId": rounds[-1].get("id") if rounds else None,
     }
 
 def apply_ledger_to_view(ledger: dict, view_path: str) -> None:
@@ -122,7 +150,12 @@ def apply_ledger_to_view(ledger: dict, view_path: str) -> None:
         raise ValueError("view source block could not be read") from error
     if hashlib.sha256(source.encode("utf-8")).hexdigest() != ledger.get("sourceSha256"):
         raise ValueError("merged ledger reviews a different source snapshot than this view")
-    payload = {"schemaVersion": ledger.get("schemaVersion", 2), "notes": ledger.get("notes", [])}
+    payload = {
+        "schemaVersion": ledger.get("schemaVersion", 3),
+        "notes": ledger.get("notes", []),
+        "rounds": ledger.get("rounds", []),
+        "activeRoundId": ledger.get("activeRoundId"),
+    }
     encoded = base64.b64encode(json.dumps(payload, ensure_ascii=False).encode("utf-8")).decode("ascii")
     path.write_text(NOTES_RE.sub(lambda match: match.group(1) + encoded + match.group(3), html, count=1),
                     encoding="utf-8")

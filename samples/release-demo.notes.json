@@ -1,13 +1,22 @@
 {
   "docName": "release-demo.md",
   "sourceSha256": "e72909d23f7cd9fee4efb9ca559215f938c877b292f0d44bfb8337d50d55b5df",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
+  "rounds": [
+    {
+      "id": "release-round-1",
+      "label": "Round 1",
+      "startedAt": "2026-07-10T00:00:00Z"
+    }
+  ],
+  "activeRoundId": "release-round-1",
   "notes": [
     {
       "id": "release-critical",
       "author": "Ari",
       "kind": "comment",
       "priority": "critical",
+      "roundId": "release-round-1",
       "created": "2026-07-10T00:00:00Z",
       "anchor": {
         "quote": "claims the sync is complete",
@@ -28,6 +37,20 @@
           "body": "Name the drain check and make the handoff conditional on it."
         }
       ],
+      "receipts": [
+        {
+          "id": "release-receipt-1",
+          "author": "Revision agent",
+          "outcome": "partially-applied",
+          "reason": "The queue-drain condition is named, but the fallback policy still needs review.",
+          "recordedAt": "2026-07-10T00:06:00Z",
+          "sourceSha256": "e72909d23f7cd9fee4efb9ca559215f938c877b292f0d44bfb8337d50d55b5df",
+          "newLocation": {
+            "headingPath": ["Release Handoff"],
+            "lineRange": "3"
+          }
+        }
+      ],
       "resolved": false
     },
     {
@@ -35,6 +58,7 @@
       "author": "Mina",
       "kind": "comment",
       "priority": "important",
+      "roundId": "release-round-1",
       "created": "2026-07-10T00:04:00Z",
       "anchor": {
         "quote": "without a fallback",
@@ -49,12 +73,14 @@
           "body": "Describe the fallback path or narrow the claim to the supported environment."
         }
       ],
+      "receipts": [],
       "resolved": false
     },
     {
       "id": "release-strike",
       "author": "Ari",
       "kind": "strike",
+      "roundId": "release-round-1",
       "created": "2026-07-10T00:05:00Z",
       "anchor": {
         "quote": "observable condition",
@@ -62,6 +88,7 @@
         "suffix": " that permits rollout."
       },
       "thread": [],
+      "receipts": [],
       "resolved": false
     }
   ]

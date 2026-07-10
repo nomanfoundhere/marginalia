@@ -8,6 +8,13 @@ description: Merge Margin Notes sidecars from parallel reviewers and apply the c
 Combine independent reviews of the same Markdown snapshot without copying notes
 between browser files by hand.
 
+Create separate reviewer copies before parallel work:
+
+    bash <root>/scripts/prepare-review-copies.sh <doc>-view.html aria mina
+
+Each reviewer saves their own copy, then runs collection in that copy's directory
+to produce a sidecar for merge.
+
 1. Resolve the project root, the matching `<doc>-view.html`, and each reviewer
    sidecar (`<doc>.notes.json`). All sidecars must have the same document name
    and `sourceSha256`.

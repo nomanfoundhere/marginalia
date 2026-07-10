@@ -90,11 +90,13 @@ open -a Helium samples/demo-view.html
 
 ### Install the Agent Skills
 
-Marginalia is three agent skills, packaged together as a Claude Code plugin:
+Marginalia is four agent skills, packaged together as a Claude Code plugin:
 
 - `margin-send`: bake and open a Markdown file for review.
 - `margin-collect`: read a view back as a digest or revision packet and act on it.
 - `margin-merge`: combine parallel reviewer ledgers safely.
+- `margin-receipt`: record what a revision agent changed without closing the
+  reviewer’s note on its own.
 
 Install all skills globally for the current user:
 
@@ -107,8 +109,8 @@ Restart Claude Code and Codex after installation.
 
 | Agent | Installed form | Use it as |
 | --- | --- | --- |
-| Claude Code | Local `marginalia` plugin at `~/.claude/skills/marginalia` | `/margin-send`, `/margin-collect`, `/margin-merge` |
-| Codex | Local skills in `~/.codex/skills/` | Ask Codex to use `margin-send`, `margin-collect`, or `margin-merge` |
+| Claude Code | Local `marginalia` plugin at `~/.claude/skills/marginalia` | `/margin-send`, `/margin-collect`, `/margin-merge`, `/margin-receipt` |
+| Codex | Local skills in `~/.codex/skills/` | Ask Codex to use `margin-send`, `margin-collect`, `margin-merge`, or `margin-receipt` |
 
 For a one-off Claude Code session without installing anything globally:
 
@@ -196,6 +198,29 @@ python3 build-view.py plan.md
 Existing notes carry forward. Their source anchors are checked against the newly
 baked Markdown snapshot.
 
+### Record What Changed
+
+Revision agents do not resolve reviewer notes. They attach a receipt instead:
+what changed, what was declined, or what still needs clarification. The reviewer
+keeps control of resolution, while the next pass can see the prior decision.
+
+```sh
+python3 record-receipts.py plan-view.html receipts.json --author "Revision agent" --source plan.md
+```
+
+`receipts.json` is a JSON list (or `{ "receipts": [...] }`) containing a note
+ID, outcome (`applied`, `partially-applied`, `declined`, or
+`needs-clarification`), and a reason. A successful receipt does not alter the
+note’s `resolved` state.
+
+### Review Rounds and Sections
+
+The rail can start a new review round without erasing the earlier one. Its round
+and section controls let a reviewer narrow the queue to the work that belongs to
+the current pass. Packets retain a note’s review round, heading path at review
+time, current heading path, and revision receipts, so an agent can distinguish a
+new request from an older one that has already been addressed.
+
 ## When the Source Changes
 
 An AI or author can change the Markdown after a review pass. A comment should not
@@ -216,6 +241,13 @@ This is why the feedback remains useful after one revision without pretending th
 an anchor is infallible.
 
 ## Parallel Reviewers
+
+Make one named copy per reviewer before sending the view around. Separate files
+avoid accidental overwrites and make the sidecars unambiguous:
+
+```sh
+bash scripts/prepare-review-copies.sh plan-view.html aria mina
+```
 
 Running `distill.py` also writes `<doc>.notes.json`: a git-friendly derived ledger
 containing the source hash and notes. Commit it when review history belongs in the
@@ -240,12 +272,14 @@ view is always explicit through `--view`.
 ## Collection Reference
 
 ```text
-python3 distill.py [--all] [--context=N] [--source=PATH] [--packet] [--no-sidecar] <doc-view.html>
+python3 distill.py [--all] [--priority=TAGS] [--status] [--context=N] [--source=PATH] [--packet] [--no-sidecar] <doc-view.html>
 ```
 
 | Option | Effect |
 | --- | --- |
 | `--all` | Include resolved notes. |
+| `--priority=TAGS` | Include only comma-separated `critical`, `important`, `refinement`, or `delete` notes. |
+| `--status` | Print the review-status summary as JSON. |
 | `--context=N` | Include `N` surrounding source lines for each located note. |
 | `--source=PATH` | Use an explicit current Markdown file rather than the sibling source. |
 | `--packet` | Emit JSON operations for an agent. |
@@ -268,8 +302,8 @@ python3 distill.py --no-sidecar samples/release-demo-view.html
 python3 distill.py --packet --no-sidecar samples/release-demo-view.html
 ```
 
-The demo contains a Critical two-reviewer discussion, an Important note, and a
-Strike deletion.
+The demo contains a Critical two-reviewer discussion with a revision receipt, an
+Important note, a Strike deletion, and a first review round.
 
 ![A focused Marginalia thread with two reviewer signatures and a reply composer.](docs/screenshots/release-demo-thread-dark.jpg)
 
@@ -292,6 +326,7 @@ template.html                    viewer UI and client-side review logic
 build-view.py                    bakes Markdown into a standalone view
 distill.py                       digest, revision packet, staleness, sidecar output
 merge-ledgers.py                 safe parallel-sidecar merge and explicit import
+record-receipts.py               agent revision outcomes without auto-resolving notes
 margin_anchor.py                 quote anchoring and Markdown source mapping
 skills/                          Claude Code and Codex review workflows
 samples/                         minimal and release-demo fixtures

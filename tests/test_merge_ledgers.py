@@ -8,8 +8,10 @@ spec = importlib.util.spec_from_file_location("merge_ledgers", BASE / "merge-led
 merge_ledgers = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(merge_ledgers)
 
-def _ledger(notes, sha="same-source"):
-    return {"docName": "plan.md", "sourceSha256": sha, "schemaVersion": 2, "notes": notes}
+def _ledger(notes, sha="same-source", **extra):
+    ledger = {"docName": "plan.md", "sourceSha256": sha, "schemaVersion": 3, "notes": notes}
+    ledger.update(extra)
+    return ledger
 
 def _note(note_id="n-1", quote="timeline", created="2026-07-09T10:00:00Z", **extra):
     note = {"id": note_id, "author": "Aeva", "kind": "comment", "priority": "important",
@@ -31,6 +33,23 @@ def test_merge_ledgers_combines_threads_of_same_note():
     note = merged["notes"][0]
     assert [entry["id"] for entry in note["thread"]] == ["e-a", "e-b"]
     assert note["priority"] == "critical"
+
+def test_merge_ledgers_combines_receipts_without_resolving_the_note():
+    left = _note(receipts=[{"id": "r-a", "author": "Agent A", "outcome": "applied",
+                            "recordedAt": "2026-07-10T10:00:00Z"}])
+    right = _note(receipts=[{"id": "r-b", "author": "Agent B", "outcome": "declined",
+                             "recordedAt": "2026-07-10T10:01:00Z"}])
+    merged = merge_ledgers.merge_ledgers([_ledger([left]), _ledger([right])])
+    note = merged["notes"][0]
+    assert [receipt["id"] for receipt in note["receipts"]] == ["r-a", "r-b"]
+    assert note["resolved"] is False
+
+def test_merge_ledgers_preserves_review_rounds():
+    left = _ledger([_note()], rounds=[{"id": "r1", "label": "Round 1", "startedAt": "2026-07-10T10:00:00Z"}])
+    right = _ledger([_note()], rounds=[{"id": "r2", "label": "Round 2", "startedAt": "2026-07-10T11:00:00Z"}])
+    merged = merge_ledgers.merge_ledgers([left, right])
+    assert [round["id"] for round in merged["rounds"]] == ["r1", "r2"]
+    assert merged["activeRoundId"] == "r2"
 
 def test_merge_ledgers_keeps_legacy_id_collision_separate():
     left = _note("n1", quote="timeline", created="2026-07-09T10:00:00Z")
@@ -57,17 +76,21 @@ def test_merge_ledgers_rejects_different_source_snapshots():
 def test_apply_ledger_to_matching_view_replaces_only_notes(tmp_path):
     source = "# Plan\n"
     sha = merge_ledgers.hashlib.sha256(source.encode()).hexdigest()
-    notes = {"schemaVersion": 2, "notes": [_note("n-a")]}
+    notes = {"schemaVersion": 3, "notes": [_note("n-a")],
+             "rounds": [{"id": "r1", "label": "Round 1"}], "activeRoundId": "r1"}
     html = ('<script id="margin-source" type="text/plain">'
             + base64.b64encode(source.encode()).decode()
             + '</script><script id="margin-notes" type="text/plain">'
-            + base64.b64encode(json.dumps({"schemaVersion": 2, "notes": []}).encode()).decode()
+            + base64.b64encode(json.dumps({"schemaVersion": 3, "notes": []}).encode()).decode()
             + '</script>')
     view = tmp_path / "plan-view.html"
     view.write_text(html)
     merge_ledgers.apply_ledger_to_view({"sourceSha256": sha, **notes}, str(view))
     payload = merge_ledgers.NOTES_RE.search(view.read_text()).group(2)
-    assert json.loads(base64.b64decode(payload))["notes"][0]["id"] == "n-a"
+    imported = json.loads(base64.b64decode(payload))
+    assert imported["notes"][0]["id"] == "n-a"
+    assert imported["rounds"][0]["id"] == "r1"
+    assert imported["activeRoundId"] == "r1"
 
 def test_apply_ledger_to_wrong_view_rejects_before_writing(tmp_path):
     source = "# Plan\n"

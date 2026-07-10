@@ -144,6 +144,11 @@ mark.mn-hl {
 .mn-tab[data-filter="important"][aria-selected="true"] { color: var(--important); border-color: var(--important); }
 .mn-tab[data-filter="refinement"][aria-selected="true"] { color: var(--refinement); border-color: var(--refinement); }
 .mn-tab[data-filter="deletions"][aria-selected="true"] { color: var(--delete); border-color: var(--delete); }
+.mn-scope-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: .35rem; margin-bottom: .55rem; }
+.mn-scope-select { min-width: 0; max-width: 100%; padding: .32rem .45rem; border: 1px solid var(--line-2);
+  border-radius: 5px; background: var(--field); color: var(--ink-2); font: .75rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.mn-round-badge { color: var(--ink-3); font: .64rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .06em; text-transform: uppercase; }
 .mn-rail-list { position: relative; min-height: 1px; }
 #margin-rail.anchored .mn-rail-list .mn-card { position: absolute; left: 0; right: 0; }
 #margin-rail:not(.anchored) .mn-card { margin-bottom: .8rem; }
@@ -197,6 +202,11 @@ mark.mn-hl {
 .mn-open-note { margin-left: auto; color: var(--ink-3); }
 .mn-card.active .mn-open-note { display: none; }
 .mn-reattach { color: var(--card-accent); font-size: .78rem; }
+.mn-receipt { margin: .55rem 0; padding: .5rem .6rem; background: var(--field); border: 1px solid var(--line);
+  border-radius: 6px; color: var(--ink-2); font-size: .82rem; line-height: 1.4; }
+.mn-receipt strong { color: var(--ink); }
+.mn-receipt-meta { display: block; margin-bottom: .18rem; color: var(--ink-3); font-size: .68rem;
+  letter-spacing: .06em; text-transform: uppercase; }
 
 /* Conversation hierarchy comes from the reply's position, not an avatar rail. */
 .mn-conv { display: flex; flex-direction: column; gap: .72rem; }
@@ -367,9 +377,9 @@ mark.mn-hl.is-muted { opacity: .28; }
     state = { schemaVersion: 1, notes: [] };
     notesCorrupt = true;
   }
-  // schema-v2 normalization: applied wherever state is assigned (baked-in
+  // schema-v3 normalization: applied wherever state is assigned (baked-in
   // load below, and the localStorage hydration further down), so every path
-  // into state leaves every note carrying a kind and schemaVersion at 2 --
+  // into state leaves every note carrying a kind and schemaVersion at 3 --
   // a stale pre-upgrade autosave must not be able to reintroduce v1 shape.
   function normalizeState() {
     // build-view carries a present-but-malformed notes payload through verbatim
@@ -381,7 +391,13 @@ mark.mn-hl.is-muted { opacity: .28; }
       return !n || typeof n !== 'object' || Array.isArray(n);
     }))) { state.notes = []; notesCorrupt = true; }
     if (!state.notes) state.notes = [];
-    state.schemaVersion = 2;
+    state.schemaVersion = 3;
+    if (!Array.isArray(state.rounds) || !state.rounds.length) {
+      state.rounds = [{ id: 'legacy-round', label: 'Round 1', startedAt: state.savedAt || null }];
+    }
+    if (!state.activeRoundId || !state.rounds.some(function (round) { return round.id === state.activeRoundId; })) {
+      state.activeRoundId = state.rounds[state.rounds.length - 1].id;
+    }
     // v1 ledgers predate priorities. Legacy standalone marks are retained as
     // priority notes, while new annotations use only comment or strike.
     state.notes.forEach(function (n) {
@@ -392,6 +408,8 @@ mark.mn-hl.is-muted { opacity: .28; }
       if (!n.kind) n.kind = 'comment';
       if (n.kind !== 'strike' && !n.priority) n.priority = 'important';
       if (!Array.isArray(n.thread)) n.thread = [];
+      if (!Array.isArray(n.receipts)) n.receipts = [];
+      if (!n.roundId) n.roundId = state.rounds[0].id;
       n.thread.forEach(function (entry, i) {
         if (!entry.id) entry.id = n.id + '-legacy-' + i;
       });
@@ -509,6 +527,26 @@ mark.mn-hl.is-muted { opacity: .28; }
   wrap.appendChild(doc); wrap.appendChild(rail);
   doc.innerHTML = globalThis.marked.parse(sourceMd);
 
+  function buildHeadingIndex() {
+    var levels = [null, null, null, null, null, null];
+    return Array.prototype.slice.call(doc.querySelectorAll('h1, h2, h3, h4, h5, h6')).map(function (heading) {
+      var level = parseInt(heading.tagName.slice(1), 10);
+      levels[level - 1] = heading.textContent.trim();
+      for (var index = level; index < levels.length; index++) levels[index] = null;
+      var before = document.createRange();
+      before.setStart(doc, 0); before.setEndBefore(heading);
+      var start = before.toString().length;
+      before.detach();
+      return { start: start, path: levels.filter(function (title) { return title; }) };
+    });
+  }
+  var headingIndex = buildHeadingIndex();
+  function sectionPathAt(offset) {
+    var path = [];
+    headingIndex.forEach(function (heading) { if (heading.start <= offset) path = heading.path; });
+    return path;
+  }
+
   // --- flat-text index <-> DOM range over #margin-doc ---
   function textNodes() {
     var w = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT, null);
@@ -561,7 +599,8 @@ mark.mn-hl.is-muted { opacity: .28; }
     var anchor = {
       quote: flat.quote,
       prefix: text.slice(Math.max(0, flat.start - 30), flat.start),
-      suffix: text.slice(flat.start + flat.quote.length, flat.start + flat.quote.length + 30)
+      suffix: text.slice(flat.start + flat.quote.length, flat.start + flat.quote.length + 30),
+      sectionPath: sectionPathAt(flat.start)
     };
     hideTools(); sel.removeAllRanges();
     return anchor;
@@ -612,7 +651,8 @@ mark.mn-hl.is-muted { opacity: .28; }
     var now = new Date().toISOString();
     var id = randomId('n');
     var note = { id: id, author: author, kind: 'comment', priority: priority || 'important',
-      created: now, updatedAt: now, anchor: anchor, thread: [draftEntry(author)], resolved: false };
+      created: now, updatedAt: now, anchor: anchor, thread: [draftEntry(author)], receipts: [],
+      roundId: state.activeRoundId, resolved: false };
     state.notes.push(note);
     activeNoteId = id;
     paintHighlights(); renderRail(); markDirty();
@@ -624,7 +664,8 @@ mark.mn-hl.is-muted { opacity: .28; }
     if (existing && existing.kind === 'strike') { removeNote(existing); return; }
     var now = new Date().toISOString();
     var note = { id: randomId('n'), author: currentAuthor(), kind: 'strike',
-      created: now, updatedAt: now, anchor: anchor, thread: [], resolved: false };
+      created: now, updatedAt: now, anchor: anchor, thread: [], receipts: [],
+      roundId: state.activeRoundId, resolved: false };
     state.notes.push(note);
     paintHighlights(); renderRail(); markDirty();
   }
@@ -737,6 +778,8 @@ mark.mn-hl.is-muted { opacity: .28; }
       var idx = globalThis.MarginCore.locateAnchor(text, n.anchor);
       n._located = idx;
       if (idx < 0) return;
+      n._sectionPath = (n.anchor && n.anchor.sectionPath && n.anchor.sectionPath.length)
+        ? n.anchor.sectionPath : sectionPathAt(idx);
       var range = rangeFromFlat(idx, n.anchor.quote.length);
       if (!range) return;
       var mk = document.createElement('mark'); mk.className = 'mn-hl'; mk.dataset.note = n.id;
@@ -744,6 +787,7 @@ mark.mn-hl.is-muted { opacity: .28; }
       mk.classList.add(n.kind === 'strike' ? 'hl-strike' : 'hl-' + n.priority);
       if (activeFilter !== 'all' && activeFilter !== 'deletions' && n.priority !== activeFilter) mk.classList.add('is-muted');
       if (activeFilter === 'deletions' && n.kind !== 'strike') mk.classList.add('is-muted');
+      if (!scopeMatches(n)) mk.classList.add('is-muted');
       try { range.surroundContents(mk); } catch (e) { /* spans element boundary: skip paint, note still listed */ }
     });
   }
@@ -751,6 +795,8 @@ mark.mn-hl.is-muted { opacity: .28; }
   // --- margin ledger: compact rows by default, one focused discussion on demand ---
   var hideResolved = false;
   var activeFilter = 'all';
+  var roundFilter = 'all';
+  var sectionFilter = '';
   var activeNoteId = null;
   var editing = {};
   var expandedThreads = {};
@@ -764,8 +810,27 @@ mark.mn-hl.is-muted { opacity: .28; }
     if (filter === 'deletions') return n.kind === 'strike';
     return n.kind !== 'strike' && n.priority === filter;
   }
+  function sectionKey(n) {
+    var path = n._sectionPath || (n.anchor && n.anchor.sectionPath) || [];
+    return path.length ? path.join(' > ') : 'No heading';
+  }
+  function scopeMatches(n) {
+    if (roundFilter !== 'all' && n.roundId !== roundFilter) return false;
+    return !sectionFilter || sectionKey(n) === sectionFilter;
+  }
+  function roundLabel(roundId) {
+    for (var index = 0; index < state.rounds.length; index++) {
+      if (state.rounds[index].id === roundId) return state.rounds[index].label;
+    }
+    return 'Round';
+  }
+  function startRound() {
+    var round = { id: randomId('round'), label: 'Round ' + (state.rounds.length + 1), startedAt: new Date().toISOString() };
+    state.rounds.push(round); state.activeRoundId = round.id; roundFilter = round.id; sectionFilter = '';
+    activeNoteId = null; paintHighlights(); renderRail(); markDirty();
+  }
   function filterCount(filter) {
-    return state.notes.filter(function (n) { return !n.resolved && filterMatches(n, filter); }).length;
+    return state.notes.filter(function (n) { return !n.resolved && filterMatches(n, filter) && scopeMatches(n); }).length;
   }
 
   function messageRow(n, entry, index) {
@@ -839,6 +904,38 @@ mark.mn-hl.is-muted { opacity: .28; }
     var label = document.createElement('div'); label.className = 'mn-rail-label';
     label.textContent = 'Review queue';
     controls.appendChild(label);
+    var scopes = document.createElement('div'); scopes.className = 'mn-scope-controls';
+    var rounds = document.createElement('select'); rounds.className = 'mn-scope-select';
+    rounds.setAttribute('aria-label', 'Review round');
+    [['all', 'All rounds']].concat(state.rounds.map(function (round) { return [round.id, round.label]; })).forEach(function (pair) {
+      var option = document.createElement('option'); option.value = pair[0]; option.textContent = pair[1];
+      option.selected = roundFilter === pair[0]; rounds.appendChild(option);
+    });
+    rounds.addEventListener('change', function () {
+      roundFilter = rounds.value; sectionFilter = ''; activeNoteId = null; paintHighlights(); renderRail();
+    });
+    var newRound = document.createElement('button'); newRound.type = 'button'; newRound.className = 'mn-btn';
+    newRound.textContent = 'New round'; newRound.setAttribute('aria-label', 'Start a new review round');
+    newRound.addEventListener('click', startRound);
+    scopes.appendChild(rounds); scopes.appendChild(newRound);
+    var sections = {};
+    state.notes.forEach(function (note) { sections[sectionKey(note)] = true; });
+    var sectionNames = Object.keys(sections).sort();
+    if (sectionNames.length > 1) {
+      var sectionSelect = document.createElement('select'); sectionSelect.className = 'mn-scope-select';
+      sectionSelect.setAttribute('aria-label', 'Markdown section');
+      var allSections = document.createElement('option'); allSections.value = ''; allSections.textContent = 'All sections';
+      sectionSelect.appendChild(allSections);
+      sectionNames.forEach(function (name) {
+        var option = document.createElement('option'); option.value = name; option.textContent = name;
+        option.selected = sectionFilter === name; sectionSelect.appendChild(option);
+      });
+      sectionSelect.addEventListener('change', function () {
+        sectionFilter = sectionSelect.value; activeNoteId = null; paintHighlights(); renderRail();
+      });
+      scopes.appendChild(sectionSelect);
+    }
+    controls.appendChild(scopes);
     var tabs = document.createElement('div'); tabs.className = 'mn-tabs'; tabs.setAttribute('role', 'tablist');
     [
       ['all', 'All'], ['critical', 'Critical'], ['important', 'Important'],
@@ -851,14 +948,16 @@ mark.mn-hl.is-muted { opacity: .28; }
       tab.addEventListener('click', function () {
         activeFilter = pair[0];
         var active = noteById(activeNoteId);
-        if (active && !filterMatches(active, activeFilter)) activeNoteId = null;
+        if (active && (!filterMatches(active, activeFilter) || !scopeMatches(active))) activeNoteId = null;
         paintHighlights(); renderRail();
       });
       tabs.appendChild(tab);
     });
     controls.appendChild(tabs); rail.appendChild(controls);
     var list = document.createElement('div'); list.className = 'mn-rail-list'; rail.appendChild(list);
-    var shown = state.notes.filter(function (n) { return !(n.resolved && hideResolved) && filterMatches(n, activeFilter); });
+    var shown = state.notes.filter(function (n) {
+      return !(n.resolved && hideResolved) && filterMatches(n, activeFilter) && scopeMatches(n);
+    });
     if (!shown.length) {
       var empty = document.createElement('p'); empty.className = 'mn-empty';
       empty.textContent = activeFilter === 'all' ? 'Select text to add a priority note or strike it out.' : 'No open items in this priority.';
@@ -881,6 +980,10 @@ mark.mn-hl.is-muted { opacity: .28; }
       var id = document.createElement('span'); id.className = 'mn-id';
       id.textContent = n.kind === 'strike' ? 'Deletion' : noteLabel(n) + ' · ' + itemLabel(n);
       head.appendChild(id);
+      if (n.roundId && n.roundId !== state.activeRoundId) {
+        var roundBadge = document.createElement('span'); roundBadge.className = 'mn-round-badge';
+        roundBadge.textContent = roundLabel(n.roundId); head.appendChild(roundBadge);
+      }
       if (draftOpen) {
         var draftBadge = document.createElement('span'); draftBadge.className = 'mn-badge';
         draftBadge.textContent = 'draft';
@@ -944,6 +1047,19 @@ mark.mn-hl.is-muted { opacity: .28; }
         var repair = document.createElement('div'); repair.className = 'mn-reattach';
         repair.textContent = 'Select the replacement text, then use Reattach in the selection menu.';
         card.appendChild(repair);
+      }
+
+      if (active && n.receipts && n.receipts.length) {
+        var receipt = n.receipts[n.receipts.length - 1];
+        var receiptBox = document.createElement('div'); receiptBox.className = 'mn-receipt';
+        var receiptMeta = document.createElement('span'); receiptMeta.className = 'mn-receipt-meta';
+        receiptMeta.textContent = 'Revision receipt · ' + (receipt.outcome || 'recorded') + ' · ' + (receipt.author || 'Agent');
+        var receiptReason = document.createElement('strong'); receiptReason.textContent = receipt.reason || 'No explanation recorded.';
+        receiptBox.appendChild(receiptMeta); receiptBox.appendChild(receiptReason);
+        if (receipt.newLocation && receipt.newLocation.headingPath && receipt.newLocation.headingPath.length) {
+          receiptBox.appendChild(document.createTextNode(' · ' + receipt.newLocation.headingPath.join(' > ')));
+        }
+        card.appendChild(receiptBox);
       }
 
       if (active && !n.resolved) {
