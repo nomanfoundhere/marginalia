@@ -62,6 +62,27 @@ The reviewer never needs the repository or the source Markdown just to annotate.
 The receiving agent can work from a small feedback packet when it already has
 access to the current source file.
 
+## Desktop Review Workspace
+
+Wide desktop views keep three kinds of context visible at once:
+
+```text
+Document map                 Markdown source                    Review queue
+where am I?                  what am I reading?                 what needs work?
+```
+
+The left map is generated from rendered Markdown headings. It scrolls to the
+selected section and follows the section being read. The centre remains the
+Markdown document. The right margin holds the priority queue, threads, receipts,
+rounds, and source-linked notes. The map collapses only when the viewport cannot
+keep all three columns readable.
+
+The top strip names the state of each control: **Reviewing as** identifies the
+author for new notes and replies, **Document** names the source being reviewed,
+**File** distinguishes an on-disk save from a browser-local draft, **Appearance**
+changes the theme, and **View** controls whether resolved discussions remain
+visible.
+
 ## Requirements
 
 - Python 3.10 or newer. Runtime dependencies are Python standard library only.
@@ -152,6 +173,10 @@ Post the note, then use the focused thread to add replies. The margin filters Al
 Critical, Important, Refinements, and Deletions. One discussion expands at a time
 while the rest stay compact and aligned to their source spans.
 
+On a wide desktop, the map on the left follows Markdown headings while the review
+queue stays on the right. The map only navigates the document: priority and round
+filters remain review controls in the right margin.
+
 ### 3. Save the review file
 
 Chromium browsers support the smooth path:
@@ -218,8 +243,8 @@ note’s `resolved` state.
 The rail can start a new review round without erasing the earlier one. Its round
 and section controls let a reviewer narrow the queue to the work that belongs to
 the current pass. Packets retain a note’s review round, heading path at review
-time, current heading path, and revision receipts, so an agent can distinguish a
-new request from an older one that has already been addressed.
+time, current heading path, and revision receipts. An agent can therefore
+distinguish a new request from an older one that has already been addressed.
 
 ## When the Source Changes
 
@@ -303,7 +328,8 @@ python3 distill.py --packet --no-sidecar samples/release-demo-view.html
 ```
 
 The demo contains a Critical two-reviewer discussion with a revision receipt, an
-Important note, a Strike deletion, and a first review round.
+Important note, a Strike deletion, a first review round, the desktop document map,
+and labelled toolbar states.
 
 ![A focused Marginalia thread with two reviewer signatures and a reply composer.](docs/screenshots/release-demo-thread-dark.jpg)
 
