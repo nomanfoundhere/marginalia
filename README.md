@@ -9,7 +9,23 @@ deletion, reply in context, and send the same file back. The author or an AI the
 receives a compact digest or structured revision packet with the feedback's
 location, intent, and discussion intact.
 
-![A Marginalia review with a Critical discussion, an Important note, and a deletion in Helium.](docs/screenshots/release-demo-dark.jpg)
+![The complete Marginalia desktop workspace, annotated with numbered feature callouts.](https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-annotated.png)
+
+The numbered view shows the complete handoff in one frame:
+
+| Callout | What it shows |
+| --- | --- |
+| 1 | The one-time file arming control used for in-place saves. |
+| 2 | The persistent review toolbar. |
+| 3 | The Markdown document being reviewed. |
+| 4 | File save and browser-local recovery state. |
+| 5 | The review queue and round controls. |
+| 6 | Priority filters for Critical, Important, Refinement, and Deletion work. |
+| 7 | The exact source passage attached to the open discussion. |
+| 9 | A revision receipt recording what an agent changed and what remains. |
+| 10 | Distinct reviewer signatures and the discussion they produced. |
+| 11 | The reply composer for continuing the source-linked discussion. |
+| 12 | The heading-derived document map. |
 
 ## The Problem
 
@@ -89,13 +105,36 @@ visible.
 - A modern browser to review the generated HTML offline.
 - Chromium is recommended for in-place saving: Helium, Chrome, Edge, and Brave
   expose the File System Access API used by the self-saving flow.
+- Node.js 18 or newer is needed only for the optional npm-installed command.
 
-No server, database, account, API key, Node package, or network request is needed
-at review time.
+No server, database, account, API key, or network request is needed at review
+time.
 
 ## Install
 
-Clone the repository and enter it:
+Install the command globally from npm:
+
+```sh
+npm install -g marginalia-md
+marginalia --help
+```
+
+The npm package contains the viewer, Python review engine, agent skills, sample
+documents, and release fixture. Python 3.10 or newer must still be available on
+`PATH`; the Node launcher finds it and delegates to the bundled scripts.
+
+Run the packaged demo as a smoke test:
+
+```sh
+marginalia demo
+```
+
+The command prints the full path to `release-demo-view.html`. Open that file in
+Helium, Chrome, Edge, or Brave.
+
+### Install from Source
+
+Clone the repository when developing Marginalia itself:
 
 ```sh
 git clone https://github.com/nomanfoundhere/marginalia.git
@@ -119,7 +158,13 @@ Marginalia is four agent skills, packaged together as a Claude Code plugin:
 - `margin-receipt`: record what a revision agent changed without closing the
   reviewer’s note on its own.
 
-Install all skills globally for the current user:
+An npm installation can install all skills globally for the current user:
+
+```sh
+marginalia skills
+```
+
+From a source checkout, run the same installer directly:
 
 ```sh
 ./scripts/install-agent-skills.sh
@@ -146,7 +191,7 @@ Assume the document is `plan.md`.
 ### 1. Bake the review file
 
 ```sh
-python3 build-view.py plan.md
+marginalia build plan.md
 ```
 
 This writes `plan-view.html` next to the Markdown source. The file embeds a source
@@ -201,13 +246,13 @@ makes review work portable.
 For a readable terminal digest:
 
 ```sh
-python3 distill.py plan-view.html
+marginalia collect plan-view.html
 ```
 
 For an agent that can already read `plan.md`, use the compact structured packet:
 
 ```sh
-python3 distill.py --packet plan-view.html
+marginalia packet plan-view.html
 ```
 
 The packet contains operations such as `note` and `delete`, priority, author,
@@ -217,7 +262,7 @@ locations, and source hashes. It does **not** duplicate the document text.
 After revision, rebuild the view from the Markdown source:
 
 ```sh
-python3 build-view.py plan.md
+marginalia build plan.md
 ```
 
 Existing notes carry forward. Their source anchors are checked against the newly
@@ -230,7 +275,7 @@ what changed, what was declined, or what still needs clarification. The reviewer
 keeps control of resolution, while the next pass can see the prior decision.
 
 ```sh
-python3 record-receipts.py plan-view.html receipts.json --author "Revision agent" --source plan.md
+marginalia receipt plan-view.html receipts.json --author "Revision agent" --source plan.md
 ```
 
 `receipts.json` is a JSON list (or `{ "receipts": [...] }`) containing a note
@@ -282,7 +327,7 @@ Merge sidecars from independent reviewers only when they refer to the same sourc
 snapshot:
 
 ```sh
-python3 merge-ledgers.py reviewer-a.notes.json reviewer-b.notes.json \
+marginalia merge reviewer-a.notes.json reviewer-b.notes.json \
   --out plan.notes.json --view plan-view.html
 ```
 
@@ -297,7 +342,8 @@ view is always explicit through `--view`.
 ## Collection Reference
 
 ```text
-python3 distill.py [--all] [--priority=TAGS] [--status] [--context=N] [--source=PATH] [--packet] [--no-sidecar] <doc-view.html>
+marginalia collect [--all] [--priority=TAGS] [--status] [--context=N] [--source=PATH] [--no-sidecar] <doc-view.html>
+marginalia packet  [--all] [--priority=TAGS] [--status] [--context=N] [--source=PATH] [--no-sidecar] <doc-view.html>
 ```
 
 | Option | Effect |
@@ -318,7 +364,14 @@ actually revise it.
 
 The checked-in [release fixture](samples/release-demo.md) and
 [review ledger](samples/release-demo.notes.json) reproduce the screenshots and the
-complete return path:
+complete return path. An npm installation can build the fixture with:
+
+```sh
+marginalia demo
+```
+
+The command prints the generated HTML path. From a source checkout, the complete
+demo sequence is:
 
 ```sh
 ./scripts/build-release-demo.sh
@@ -331,7 +384,7 @@ The demo contains a Critical two-reviewer discussion with a revision receipt, an
 Important note, a Strike deletion, a first review round, the desktop document map,
 and labelled toolbar states.
 
-![A focused Marginalia thread with two reviewer signatures and a reply composer.](docs/screenshots/release-demo-thread-dark.jpg)
+![A focused Marginalia thread with a revision receipt, two reviewer signatures, and a reply composer.](https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-thread-dark.jpeg)
 
 ## Data, Privacy, and Boundaries
 

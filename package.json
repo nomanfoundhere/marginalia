@@ -1,0 +1,52 @@
+{
+  "name": "marginalia-md",
+  "version": "1.0.0",
+  "description": "Portable, source-addressed Markdown review for humans and AI agents.",
+  "license": "MIT",
+  "author": "Tanishq Desai",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nomanfoundhere/marginalia.git"
+  },
+  "bugs": {
+    "url": "https://github.com/nomanfoundhere/marginalia/issues"
+  },
+  "homepage": "https://github.com/nomanfoundhere/marginalia#readme",
+  "keywords": [
+    "markdown",
+    "review",
+    "annotations",
+    "ai",
+    "feedback",
+    "offline"
+  ],
+  "bin": {
+    "marginalia": "bin/marginalia.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "files": [
+    ".claude-plugin/",
+    "bin/",
+    "build-view.py",
+    "distill.py",
+    "margin_anchor.py",
+    "margin-core.js",
+    "merge-ledgers.py",
+    "record-receipts.py",
+    "template.html",
+    "vendor/",
+    "scripts/install-agent-skills.sh",
+    "scripts/prepare-review-copies.sh",
+    "skills/",
+    "samples/",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "python3 -m pytest tests/ -q && node --test tests/*.mjs",
+    "check": "npm run test && claude plugins validate .",
+    "pack:check": "npm pack --dry-run"
+  }
+}
