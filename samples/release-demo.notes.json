@@ -1,0 +1,69 @@
+{
+  "docName": "release-demo.md",
+  "sourceSha256": "e72909d23f7cd9fee4efb9ca559215f938c877b292f0d44bfb8337d50d55b5df",
+  "extractedAt": "2026-07-10T10:55:38+00:00",
+  "schemaVersion": 2,
+  "notes": [
+    {
+      "id": "release-critical",
+      "author": "Ari",
+      "kind": "comment",
+      "priority": "critical",
+      "created": "2026-07-10T00:00:00Z",
+      "anchor": {
+        "quote": "claims the sync is complete",
+        "prefix": "The worker ",
+        "suffix": " before the queue"
+      },
+      "thread": [
+        {
+          "id": "release-critical-1",
+          "author": "Ari",
+          "ts": "2026-07-10T00:01:00Z",
+          "body": "State the completion condition. The queue still has work at this point."
+        },
+        {
+          "id": "release-critical-2",
+          "author": "Mina",
+          "ts": "2026-07-10T00:03:00Z",
+          "body": "Name the drain check and make the handoff conditional on it."
+        }
+      ],
+      "resolved": false
+    },
+    {
+      "id": "release-important",
+      "author": "Mina",
+      "kind": "comment",
+      "priority": "important",
+      "created": "2026-07-10T00:04:00Z",
+      "anchor": {
+        "quote": "without a fallback",
+        "prefix": "The retry path exits ",
+        "suffix": "."
+      },
+      "thread": [
+        {
+          "id": "release-important-1",
+          "author": "Mina",
+          "ts": "2026-07-10T00:04:00Z",
+          "body": "Describe the fallback path or narrow the claim to the supported environment."
+        }
+      ],
+      "resolved": false
+    },
+    {
+      "id": "release-strike",
+      "author": "Ari",
+      "kind": "strike",
+      "created": "2026-07-10T00:05:00Z",
+      "anchor": {
+        "quote": "observable condition",
+        "prefix": "The release note should name the ",
+        "suffix": " that permits rollout."
+      },
+      "thread": [],
+      "resolved": false
+    }
+  ]
+}
