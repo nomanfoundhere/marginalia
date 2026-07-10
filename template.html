@@ -144,9 +144,17 @@ mark.mn-hl {
 .mn-tab[data-filter="important"][aria-selected="true"] { color: var(--important); border-color: var(--important); }
 .mn-tab[data-filter="refinement"][aria-selected="true"] { color: var(--refinement); border-color: var(--refinement); }
 .mn-tab[data-filter="deletions"][aria-selected="true"] { color: var(--delete); border-color: var(--delete); }
-.mn-scope-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: .35rem; margin-bottom: .55rem; }
-.mn-scope-select { min-width: 0; max-width: 100%; padding: .32rem .45rem; border: 1px solid var(--line-2);
-  border-radius: 5px; background: var(--field); color: var(--ink-2); font: .75rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.mn-scope-controls { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .28rem .55rem; margin: 0 0 .45rem; }
+.mn-scope-label { color: var(--ink-3); font: 650 .63rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .08em; text-transform: uppercase; }
+.mn-scope-select { min-width: 0; max-width: 100%; padding: .15rem 1.15rem .15rem .1rem; border: 0;
+  border-bottom: 1px solid var(--line-2); border-radius: 0; background: transparent; color: var(--ink-2);
+  font: 650 .76rem/1.25 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; cursor: pointer; }
+.mn-scope-select:hover, .mn-scope-select:focus { color: var(--ink); border-bottom-color: var(--accent); }
+.mn-scope-value { padding: .15rem .1rem; border-bottom: 1px solid var(--line); color: var(--ink-2);
+  font: 650 .76rem/1.25 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.mn-round-action { padding: 0; border: 0; background: transparent; color: var(--accent); box-shadow: none; font-size: .76rem; }
+.mn-round-action:hover { color: var(--accent); border-color: transparent; text-decoration: underline; }
 .mn-round-badge { color: var(--ink-3); font: .64rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing: .06em; text-transform: uppercase; }
 .mn-rail-list { position: relative; min-height: 1px; }
@@ -195,9 +203,7 @@ mark.mn-hl {
   text-overflow: ellipsis; white-space: nowrap; font-size: .78rem; }
 .mn-card.active .mn-row-summary, .mn-card.active .mn-row-quote { display: none; }
 .mn-priority { color: var(--card-accent); }
-.mn-card-foot { display: flex; justify-content: flex-end; gap: .4rem;
-  margin-top: .45rem; padding-top: .2rem; }
-.mn-resolve-action { color: var(--ink-2); font-size: .78rem; box-shadow: none; }
+.mn-resolve-action { color: var(--accent); font-weight: 650; }
 .mn-thread-toggle { margin-left: .8rem; align-self: flex-start; }
 .mn-open-note { margin-left: auto; color: var(--ink-3); }
 .mn-card.active .mn-open-note { display: none; }
@@ -905,23 +911,32 @@ mark.mn-hl.is-muted { opacity: .28; }
     label.textContent = 'Review queue';
     controls.appendChild(label);
     var scopes = document.createElement('div'); scopes.className = 'mn-scope-controls';
-    var rounds = document.createElement('select'); rounds.className = 'mn-scope-select';
-    rounds.setAttribute('aria-label', 'Review round');
-    [['all', 'All rounds']].concat(state.rounds.map(function (round) { return [round.id, round.label]; })).forEach(function (pair) {
-      var option = document.createElement('option'); option.value = pair[0]; option.textContent = pair[1];
-      option.selected = roundFilter === pair[0]; rounds.appendChild(option);
-    });
-    rounds.addEventListener('change', function () {
-      roundFilter = rounds.value; sectionFilter = ''; activeNoteId = null; paintHighlights(); renderRail();
-    });
-    var newRound = document.createElement('button'); newRound.type = 'button'; newRound.className = 'mn-btn';
-    newRound.textContent = 'New round'; newRound.setAttribute('aria-label', 'Start a new review round');
+    var roundScope = document.createElement('span'); roundScope.className = 'mn-scope-label'; roundScope.textContent = 'Round';
+    scopes.appendChild(roundScope);
+    if (state.rounds.length > 1) {
+      var rounds = document.createElement('select'); rounds.className = 'mn-scope-select';
+      rounds.setAttribute('aria-label', 'Review round');
+      [['all', 'All rounds']].concat(state.rounds.map(function (round) { return [round.id, round.label]; })).forEach(function (pair) {
+        var option = document.createElement('option'); option.value = pair[0]; option.textContent = pair[1];
+        option.selected = roundFilter === pair[0]; rounds.appendChild(option);
+      });
+      rounds.addEventListener('change', function () {
+        roundFilter = rounds.value; sectionFilter = ''; activeNoteId = null; paintHighlights(); renderRail();
+      });
+      scopes.appendChild(rounds);
+    } else {
+      var singleRound = document.createElement('span'); singleRound.className = 'mn-scope-value';
+      singleRound.textContent = roundLabel(state.activeRoundId); scopes.appendChild(singleRound);
+    }
+    var newRound = document.createElement('button'); newRound.type = 'button'; newRound.className = 'mn-btn mn-round-action';
+    newRound.textContent = 'Start next'; newRound.setAttribute('aria-label', 'Start a new review round');
     newRound.addEventListener('click', startRound);
-    scopes.appendChild(rounds); scopes.appendChild(newRound);
+    scopes.appendChild(newRound);
     var sections = {};
     state.notes.forEach(function (note) { sections[sectionKey(note)] = true; });
     var sectionNames = Object.keys(sections).sort();
     if (sectionNames.length > 1) {
+      var sectionScope = document.createElement('span'); sectionScope.className = 'mn-scope-label'; sectionScope.textContent = 'Section';
       var sectionSelect = document.createElement('select'); sectionSelect.className = 'mn-scope-select';
       sectionSelect.setAttribute('aria-label', 'Markdown section');
       var allSections = document.createElement('option'); allSections.value = ''; allSections.textContent = 'All sections';
@@ -933,7 +948,7 @@ mark.mn-hl.is-muted { opacity: .28; }
       sectionSelect.addEventListener('change', function () {
         sectionFilter = sectionSelect.value; activeNoteId = null; paintHighlights(); renderRail();
       });
-      scopes.appendChild(sectionSelect);
+      scopes.appendChild(sectionScope); scopes.appendChild(sectionSelect);
     }
     controls.appendChild(scopes);
     var tabs = document.createElement('div'); tabs.className = 'mn-tabs'; tabs.setAttribute('role', 'tablist');
@@ -999,14 +1014,15 @@ mark.mn-hl.is-muted { opacity: .28; }
       var grow = document.createElement('span'); grow.className = 'grow'; grow.style.flex = '1'; head.appendChild(grow);
       var resolveBtn = null;
       if (active && !draftOpen && n.kind !== 'strike') {
-        resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-btn mn-resolve-action';
-        resolveBtn.textContent = n.resolved ? 'Reopen discussion' : 'Resolve discussion';
+        resolveBtn = document.createElement('button'); resolveBtn.className = 'mn-icon mn-resolve-action';
+        resolveBtn.textContent = n.resolved ? 'Reopen' : 'Resolve';
         resolveBtn.setAttribute('aria-label', n.resolved ? 'Reopen ' + itemLabel(n) : 'Resolve ' + itemLabel(n));
         resolveBtn.addEventListener('click', function () {
           n.resolved = !n.resolved; n.resolvedAt = n.resolved ? new Date().toISOString() : null; touchNote(n);
           paintHighlights(); renderRail(); markDirty();
         });
       }
+      if (resolveBtn) head.appendChild(resolveBtn);
       if (n.kind === 'strike') {
         var undoStrike = document.createElement('button'); undoStrike.className = 'mn-icon'; undoStrike.textContent = 'Undo';
         undoStrike.setAttribute('aria-label', 'Undo deletion for ' + itemLabel(n));
@@ -1105,12 +1121,6 @@ mark.mn-hl.is-muted { opacity: .28; }
         }
         card.appendChild(conv);
       }
-      if (resolveBtn) {
-        var foot = document.createElement('div'); foot.className = 'mn-card-foot';
-        foot.appendChild(resolveBtn);
-        card.appendChild(foot);
-      }
-
       card.addEventListener('click', function (e) {
         if (/^(TEXTAREA|BUTTON|INPUT)$/.test(e.target.tagName)) return;
         var hl = doc.querySelector('mark.mn-hl[data-note="' + n.id + '"]');
