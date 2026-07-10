@@ -54,13 +54,16 @@ body {
 /* --- header --- */
 #margin-header {
   position: sticky; top: 0; z-index: 20;
-  display: flex; gap: .6rem; align-items: center; flex-wrap: wrap;
+  display: flex; gap: .65rem clamp(.75rem, 1.4vw, 1.2rem); align-items: center; flex-wrap: wrap;
   padding: .65rem clamp(1rem, 3vw, 2rem); background: var(--panel);
   border-bottom: 1px solid var(--line);
   box-shadow: 0 1px 0 rgba(20, 28, 43, .04);
 }
 #margin-header .grow { flex: 1 1 8rem; min-width: 0; }
-.mn-title { font-weight: 650; color: var(--ink-2);
+.mn-toolbar-field { display: inline-flex; align-items: center; gap: .5rem; min-width: 0; }
+.mn-toolbar-label { color: var(--ink-3); font: 700 .62rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+.mn-title { display: block; min-width: 0; font-weight: 650; color: var(--ink-2);
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .mn-btn, .mn-save {
@@ -75,32 +78,47 @@ body {
 .mn-save[data-state="saving"] { color: var(--ink-3); }
 .mn-state { font-size: .78rem; color: var(--ink-3); white-space: nowrap; }
 .mn-state[data-state="dirty"] { color: var(--accent); }
+.mn-toolbar-button { min-height: 2rem; padding: .28rem .55rem; border-radius: 6px; box-shadow: none; font-size: .78rem; }
 .mn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .mn-primary:hover { background: var(--accent); border-color: var(--accent); filter: brightness(1.06); }
 
-.mn-identity { display: inline-flex; }
-.mn-chip {
-  display: inline-flex; align-items: center; gap: .45rem;
-  font: inherit; font-size: .85rem; padding: .3rem .6rem;
-  border: 1px solid var(--line-2); border-radius: 999px;
-  background: var(--field); color: var(--ink); cursor: pointer;
+.mn-identity { display: inline-flex; min-width: 0; }
+.mn-reviewer-control {
+  min-height: 2rem; max-width: 14rem; overflow: hidden; padding: .28rem .55rem;
+  border: 1px solid var(--line-2); border-radius: 6px; background: var(--field); color: var(--ink); cursor: pointer;
+  font: 650 .78rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  text-overflow: ellipsis; white-space: nowrap;
 }
-.mn-dot { width: 12px; height: 12px; border-radius: 50%; flex: none;
-  background: var(--ink-3); box-shadow: inset 0 0 0 1px rgba(0,0,0,.18); }
+.mn-reviewer-control:hover { border-color: var(--accent); }
 .mn-name-input {
-  font: inherit; font-size: .88rem; padding: .3rem .55rem;
-  border: 1px solid var(--accent); border-radius: 999px;
+  min-height: 2rem; font: 650 .78rem/1.2 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  padding: .28rem .55rem; border: 1px solid var(--accent); border-radius: 6px;
   background: var(--field); color: var(--ink); width: 11rem; max-width: 50vw;
 }
-.mn-hr { display: inline-flex; align-items: center; gap: .35rem;
-  font-size: .82rem; color: var(--ink-2); cursor: pointer; }
+.mn-hr { display: inline-flex; align-items: center; min-height: 2rem; gap: .35rem; padding: .28rem .5rem;
+  border: 1px solid var(--line-2); border-radius: 6px; background: var(--field); color: var(--ink-2); cursor: pointer;
+  font-size: .78rem; white-space: nowrap; }
+.mn-hr:hover { border-color: var(--accent); }
+.mn-hr input { accent-color: var(--accent); }
 
-/* --- layout: centred reading column + anchored rail --- */
+/* --- layout: document map + reading column + anchored review margin --- */
 .layout {
   display: grid; grid-template-columns: minmax(0, 70ch) minmax(22rem, var(--rail));
   gap: clamp(1.5rem, 3vw, 3.5rem); justify-content: center; align-items: start;
   padding: clamp(1.25rem, 3vw, 2.5rem) clamp(1rem, 3vw, 2rem) 5rem;
 }
+#margin-nav { display: none; min-width: 0; }
+.mn-map-label { display: block; margin: .15rem 0 .6rem; color: var(--ink-3);
+  font: 700 .68rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: .09em; text-transform: uppercase; }
+.mn-map-list { display: flex; flex-direction: column; gap: .08rem; border-left: 1px solid var(--line); }
+.mn-map-item { display: block; width: 100%; border: 0; border-left: 2px solid transparent; margin-left: -1px;
+  padding: .28rem .35rem .28rem .6rem; background: transparent; color: var(--ink-3); cursor: pointer; text-align: left;
+  font: .78rem/1.3 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; }
+.mn-map-item:hover { color: var(--ink); background: var(--field); }
+.mn-map-item[aria-current="true"] { border-left-color: var(--accent); color: var(--ink); font-weight: 650; }
+.mn-map-item[data-level="2"] { padding-left: 1rem; font-size: .75rem; }
+.mn-map-item[data-level="3"], .mn-map-item[data-level="4"], .mn-map-item[data-level="5"], .mn-map-item[data-level="6"] { padding-left: 1.35rem; font-size: .73rem; }
 #margin-doc {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: var(--shadow); padding: clamp(1.6rem, 4vw, 3rem) clamp(1.25rem, 4vw, 3rem);
@@ -109,7 +127,7 @@ body {
 }
 #margin-doc h1, #margin-doc h2, #margin-doc h3 {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
-  line-height: 1.18; letter-spacing: 0; color: var(--ink);
+  line-height: 1.18; letter-spacing: 0; color: var(--ink); scroll-margin-top: calc(var(--mn-header-height, 4.2rem) + 1rem);
 }
 #margin-doc h1 { font-size: clamp(1.8rem, 3vw, 2.55rem); margin-top: 0; }
 #margin-doc h2 { margin-top: 2.2em; }
@@ -131,7 +149,7 @@ mark.mn-hl {
 }
 
 #margin-rail { min-width: 0; }
-.mn-rail-controls { position: sticky; top: 4.2rem; z-index: 4; padding: .25rem 0 .75rem; background: var(--desk); }
+.mn-rail-controls { position: sticky; top: calc(var(--mn-header-height, 4.2rem) + .25rem); z-index: 4; padding: .25rem 0 .75rem; background: var(--desk); }
 .mn-rail-label { display: flex; align-items: center; justify-content: center; margin: 0 0 .45rem;
   color: var(--ink-3); font: 700 .68rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   letter-spacing: .09em; text-transform: uppercase; }
@@ -289,6 +307,13 @@ mark.mn-hl.is-muted { opacity: .28; }
   #margin-rail { border-top: 1px solid var(--line); padding-top: 1rem; }
   .mn-explainer { left: 1rem; right: 1rem; max-width: none; }
 }
+@media (min-width: 1000px) {
+  .layout { grid-template-columns: minmax(8rem, 10.5rem) minmax(25rem, 70ch) minmax(17rem, var(--rail));
+    gap: clamp(1rem, 2.4vw, 3.25rem); }
+  #margin-nav { display: block; position: sticky; top: calc(var(--mn-header-height, 4.2rem) + 1rem); align-self: start;
+    max-height: calc(100vh - var(--mn-header-height, 4.2rem) - 2rem); overflow: auto; }
+  #margin-doc { padding: clamp(.4rem, 1.2vw, 1rem) 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; }
+}
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
@@ -308,6 +333,7 @@ mark.mn-hl.is-muted { opacity: .28; }
 </head>
 <body>
 <header id="margin-header"></header>
+<nav id="margin-nav" aria-label="Document map"></nav>
 <main id="margin-doc"></main>
 <aside id="margin-rail" aria-label="Margin notes"></aside>
 
@@ -331,6 +357,7 @@ mark.mn-hl.is-muted { opacity: .28; }
   var HANDLE_KEY = 'handle:' + DOC_NAME;
 
   var doc = document.getElementById('margin-doc');
+  var map = document.getElementById('margin-nav');
   var rail = document.getElementById('margin-rail');
   var header = document.getElementById('margin-header');
 
@@ -501,12 +528,9 @@ mark.mn-hl.is-muted { opacity: .28; }
   function renderIdentity() {
     idWrap.innerHTML = '';
     var chip = document.createElement('button');
-    chip.type = 'button'; chip.className = 'mn-chip';
+    chip.type = 'button'; chip.className = 'mn-reviewer-control';
     chip.setAttribute('aria-label', me ? 'Change your reviewer name' : 'Set your reviewer name');
-    var dot = document.createElement('span'); dot.className = 'mn-dot';
-    dot.style.background = colorFor(currentAuthor());
-    var label = document.createElement('span'); label.textContent = me || 'Reviewer';
-    chip.appendChild(dot); chip.appendChild(label);
+    chip.textContent = me || 'Set name';
     chip.addEventListener('click', openIdentityEditor);
     idWrap.appendChild(chip);
   }
@@ -530,7 +554,7 @@ mark.mn-hl.is-muted { opacity: .28; }
   // --- render markdown ---
   var wrap = document.createElement('div'); wrap.className = 'layout';
   doc.parentNode.insertBefore(wrap, doc);
-  wrap.appendChild(doc); wrap.appendChild(rail);
+  wrap.appendChild(map); wrap.appendChild(doc); wrap.appendChild(rail);
   doc.innerHTML = globalThis.marked.parse(sourceMd);
 
   function buildHeadingIndex() {
@@ -552,6 +576,43 @@ mark.mn-hl.is-muted { opacity: .28; }
     headingIndex.forEach(function (heading) { if (heading.start <= offset) path = heading.path; });
     return path;
   }
+
+  // The map derives from rendered Markdown headings. It is navigation only:
+  // review filtering remains in the right margin, so each side keeps one job.
+  function renderDocumentMap() {
+    map.innerHTML = '';
+    var headings = Array.prototype.slice.call(doc.querySelectorAll('h1, h2, h3, h4, h5, h6'));
+    if (!headings.length) return;
+    var label = document.createElement('span'); label.className = 'mn-map-label'; label.textContent = 'Document map';
+    var list = document.createElement('div'); list.className = 'mn-map-list';
+    var items = [];
+    headings.forEach(function (heading, index) {
+      if (!heading.id) heading.id = 'mn-section-' + index;
+      var item = document.createElement('button'); item.type = 'button'; item.className = 'mn-map-item';
+      item.dataset.level = heading.tagName.slice(1); item.dataset.target = heading.id;
+      item.textContent = heading.textContent.trim() || 'Untitled section';
+      item.setAttribute('aria-current', 'false');
+      item.addEventListener('click', function () { heading.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+      items.push({ heading: heading, item: item }); list.appendChild(item);
+    });
+    map.appendChild(label); map.appendChild(list);
+    function updateMap() {
+      var threshold = header.getBoundingClientRect().height + 28;
+      var current = items[0];
+      items.forEach(function (entry) {
+        if (entry.heading.getBoundingClientRect().top <= threshold) current = entry;
+      });
+      items.forEach(function (entry) { entry.item.setAttribute('aria-current', String(entry === current)); });
+    }
+    var pending = false;
+    window.addEventListener('scroll', function () {
+      if (pending) return;
+      pending = true;
+      requestAnimationFrame(function () { pending = false; updateMap(); });
+    }, { passive: true });
+    updateMap();
+  }
+  renderDocumentMap();
 
   // --- flat-text index <-> DOM range over #margin-doc ---
   function textNodes() {
@@ -1206,25 +1267,41 @@ mark.mn-hl.is-muted { opacity: .28; }
     isDirty: function () { return dirty; }, setClean: function () { dirty = false; }, me: function () { return me; } };
 
   // --- build header ---
+  function toolbarField(label, extraClass) {
+    var field = document.createElement('div'); field.className = 'mn-toolbar-field' + (extraClass ? ' ' + extraClass : '');
+    var fieldLabel = document.createElement('span'); fieldLabel.className = 'mn-toolbar-label'; fieldLabel.textContent = label;
+    field.appendChild(fieldLabel);
+    return field;
+  }
   idWrap = document.createElement('div'); idWrap.className = 'mn-identity';
-  var title = document.createElement('span'); title.className = 'mn-title grow'; title.textContent = DOC_NAME;
-  saveBtn = document.createElement('button'); saveBtn.className = 'mn-save';
+  var title = document.createElement('span'); title.className = 'mn-title'; title.textContent = DOC_NAME;
+  saveBtn = document.createElement('button'); saveBtn.className = 'mn-save mn-toolbar-button';
   stateChip = document.createElement('span');
   stateChip.className = 'mn-state'; stateChip.setAttribute('aria-live', 'polite');
-  themeBtn = document.createElement('button'); themeBtn.className = 'mn-btn';
+  themeBtn = document.createElement('button'); themeBtn.className = 'mn-btn mn-toolbar-button';
   var hr = document.createElement('label'); hr.className = 'mn-hr';
   var cb = document.createElement('input'); cb.type = 'checkbox';
   cb.addEventListener('change', function () { hideResolved = cb.checked; renderRail(); });
   hr.appendChild(cb); hr.appendChild(document.createTextNode('hide resolved'));
 
-  header.appendChild(idWrap);
-  header.appendChild(title);
-  header.appendChild(saveBtn);
-  header.appendChild(stateChip);
-  header.appendChild(themeBtn);
-  header.appendChild(hr);
+  var reviewerField = toolbarField('Reviewer'); reviewerField.appendChild(idWrap);
+  var documentField = toolbarField('Document', 'grow'); documentField.appendChild(title);
+  var fileField = toolbarField('File'); fileField.appendChild(saveBtn); fileField.appendChild(stateChip);
+  var appearanceField = toolbarField('Appearance'); appearanceField.appendChild(themeBtn);
+  var viewField = toolbarField('View'); viewField.appendChild(hr);
+  header.appendChild(reviewerField);
+  header.appendChild(documentField);
+  header.appendChild(fileField);
+  header.appendChild(appearanceField);
+  header.appendChild(viewField);
 
   renderIdentity();
+  function syncHeaderMetrics() {
+    document.documentElement.style.setProperty('--mn-header-height', header.getBoundingClientRect().height + 'px');
+  }
+  syncHeaderMetrics();
+  if (window.ResizeObserver) new ResizeObserver(syncHeaderMetrics).observe(header);
+  else window.addEventListener('resize', syncHeaderMetrics);
 
   // --- theme toggle ---
   function currentTheme() { return document.documentElement.getAttribute('data-theme') || 'light'; }
