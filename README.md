@@ -1,179 +1,311 @@
 # Marginalia
 
-Marginalia turns a Markdown file into a self-contained review document. A reviewer
-opens one HTML file, selects exact text, records priority feedback or deletions,
-and sends the file back. The receiving agent gets source addresses, intent, and
-threaded discussion without re-ingesting the whole document as review context.
+**A portable review pass for Markdown that returns precise human feedback to an
+AI without repeatedly re-ingesting the entire document.**
 
-The viewer is offline and zero-server. It embeds the Markdown snapshot and review
-ledger directly in the HTML, fetches nothing at runtime, and uses system fonts.
+Marginalia bakes a Markdown file into one self-contained HTML review document.
+Anyone can open that file locally, select exact text, record a priority note or a
+deletion, reply in context, and send the same file back. The author or an AI then
+receives a compact digest or structured revision packet with the feedback's
+location, intent, and discussion intact.
+
+![A Marginalia review with a Critical discussion, an Important note, and a deletion in Helium.](docs/screenshots/release-demo-dark.jpg)
+
+## The Problem
+
+Reviewing AI-generated plans, specifications, drafts, and ordinary text usually
+falls into one of two bad loops:
+
+1. A reviewer gives feedback in chat, where the comment becomes detached from the
+   exact passage it concerns.
+2. The entire document is pasted back into an AI conversation for every revision,
+   spending context on material that has not changed and leaving the agent to infer
+   what a vague comment refers to.
+
+Comments in Google Docs, Word, or an editor solve the first half of that problem
+for people. They do not provide a compact, reliable return format for an AI, and
+they often assume every reviewer shares one application, account, or server.
+
+Marginalia keeps the two jobs separate:
+
+- **The Markdown file remains the source of truth.** Any editor, repository, or
+  agent can own it.
+- **The baked HTML file is the review artifact.** It travels by email, AirDrop,
+  chat attachment, USB stick, or git without a server.
+- **The digest or revision packet is the AI return leg.** It carries only the
+  operations that matter, anchored to the source, instead of a second copy of the
+  document.
+
+This is a review system, not a replacement Markdown editor or a general-purpose
+team workspace. It is useful when a human needs to correct an agent's output with
+more precision and less prompting.
+
+## What the Workflow Looks Like
+
+```text
+author or AI writes Markdown
+          |
+          v
+build-view.py creates one portable review HTML file
+          |
+          v
+reviewers select text, leave priority notes, reply, resolve, or strike text
+          |
+          v
+distill.py returns a digest or compact revision packet
+          |
+          v
+author or AI revises the original Markdown and bakes the next review pass
+```
+
+The reviewer never needs the repository or the source Markdown just to annotate.
+The receiving agent can work from a small feedback packet when it already has
+access to the current source file.
 
 ## Requirements
 
 - Python 3.10 or newer. Runtime dependencies are Python standard library only.
-- Any modern browser can review the generated HTML offline.
-- Chromium is recommended when the reviewer needs in-place saving. Helium, Chrome,
-  Edge, and Brave expose the required File System Access API.
+- A modern browser to review the generated HTML offline.
+- Chromium is recommended for in-place saving: Helium, Chrome, Edge, and Brave
+  expose the File System Access API used by the self-saving flow.
 
-## In Use
+No server, database, account, API key, Node package, or network request is needed
+at review time.
 
-The source remains readable on the left. The margin carries priority, the exact
-selected text, reviewer signatures, a focused discussion, and direct deletion
-instructions without covering the document.
+## Install
 
-![A Marginalia review with a Critical discussion, an Important note, and a deletion in Helium.](docs/screenshots/release-demo-dark.jpg)
-
-The focused thread keeps authors legible without using profile pictures. Priority
-belongs to the card edge and source mark; reviewer identity belongs to the
-rectangular signature stamp.
-
-![A focused Marginalia review thread with two reviewers and a reply composer.](docs/screenshots/release-demo-thread-dark.jpg)
-
-## Release Demo
-
-The checked-in [release fixture](samples/release-demo.md) and
-[review ledger](samples/release-demo.notes.json) reproduce the screenshots and
-the full AI return path:
+Clone the repository and enter it:
 
 ```sh
-./scripts/build-release-demo.sh
-open -a Helium samples/release-demo-view.html
-python3 distill.py samples/release-demo-view.html
-python3 distill.py --packet samples/release-demo-view.html
+git clone https://github.com/nomanfoundhere/marginalia.git
+cd marginalia
 ```
 
-The rendered demo contains a Critical discussion with two reviewers, an Important
-note, and a Strike deletion. The text digest returns source line addresses; the
-packet returns the same operations as structured JSON without copying the source.
+Run a direct smoke test:
 
-## Review Loop
-
-```text
-plan.md -> plan-view.html -> reviewer -> digest or revision packet -> revised plan.md
+```sh
+python3 build-view.py samples/demo.md
+open -a Helium samples/demo-view.html
 ```
 
-1. Bake a source file:
+### Install the Agent Skills
 
-   ```sh
-   python3 build-view.py plan.md
-   ```
+Marginalia is three agent skills, packaged together as a Claude Code plugin:
 
-2. Open `plan-view.html` in a browser. Chromium browsers, including Helium, can
-   save it in place after the reviewer drags the file onto its own window once.
-   Firefox and Safari fall back to a downloaded replacement file.
+- `margin-send`: bake and open a Markdown file for review.
+- `margin-collect`: read a view back as a digest or revision packet and act on it.
+- `margin-merge`: combine parallel reviewer ledgers safely.
 
-3. Select a span and choose a review signal:
+Install all skills globally for the current user:
 
-   | Signal | Meaning | Shortcut |
-   | --- | --- | --- |
-   | Critical | Mission-critical correction | `1` |
-   | Important | Fix before another unnecessary iteration | `2` |
-   | Refinement | Low-risk polish or clarification | `3` |
-   | Strike | Delete the selected text | `X` |
+```sh
+./scripts/install-agent-skills.sh
+```
 
-   Priority notes automatically colour their source span. Strike creates a direct
-   deletion operation. Every coloured span has an explicit review intent.
+The installer creates symlinks and refuses to replace an existing local path.
+Restart Claude Code and Codex after installation.
 
-4. Post the comment, reply in the focused discussion when needed, then save the
-   view. The review queue filters Critical, Important, Refinements, and Deletions.
+| Agent | Installed form | Use it as |
+| --- | --- | --- |
+| Claude Code | Local `marginalia` plugin at `~/.claude/skills/marginalia` | `/margin-send`, `/margin-collect`, `/margin-merge` |
+| Codex | Local skills in `~/.codex/skills/` | Ask Codex to use `margin-send`, `margin-collect`, or `margin-merge` |
 
-5. Collect the feedback:
+For a one-off Claude Code session without installing anything globally:
 
-   ```sh
-   python3 distill.py plan-view.html
-   python3 distill.py --packet plan-view.html
-   ```
+```sh
+claude --plugin-dir "$PWD"
+```
 
-   The digest is human-readable. The revision packet is structured JSON for an
-   agent that can read the current Markdown source. Neither duplicates the full
-   source text merely to carry the review.
+## Quick Start
 
-   Collection options:
+Assume the document is `plan.md`.
 
-   ```text
-   --all             include resolved notes
-   --context=N       include N source lines around each located note
-   --source=PATH     use this Markdown file as the current source
-   --no-sidecar      suppress the derived <doc>.notes.json ledger
-   --packet          emit structured operations for an agent
-   ```
+### 1. Bake the review file
 
-6. Revise the Markdown, then bake it again. Existing notes carry forward. A span
-   whose reviewed text no longer locates stays visible as `text changed`; select
-   the replacement span in the viewer and use Reattach instead of guessing.
+```sh
+python3 build-view.py plan.md
+```
 
-## Review Data
+This writes `plan-view.html` next to the Markdown source. The file embeds a source
+snapshot and note ledger, so it can be shared as one offline review document.
 
-The HTML file is the review artifact passed between people. Running `distill.py`
-also writes `<doc>.notes.json`, a git-friendly ledger with the document hash,
-notes, and extraction time. Commit sidecars when review history belongs in the
+### 2. Review it
+
+Open `plan-view.html` locally. Select any passage and choose one of the following
+signals:
+
+| Signal | Meaning | Source mark | Shortcut |
+| --- | --- | --- | --- |
+| Critical | Mission-critical correction. The draft should not proceed unchanged. | Red | `1` |
+| Important | Fix before another unnecessary iteration. | Amber | `2` |
+| Refinement | Lower-risk polish, clarification, or follow-up. | Blue | `3` |
+| Strike | Delete the selected text. | Strikethrough | `X` |
+
+Priority signals open a draft comment and apply the matching source highlight.
+Strike creates a direct deletion instruction, with no comment required. Marginalia
+does not create wordless generic highlights: every coloured span carries a review
+intent.
+
+Post the note, then use the focused thread to add replies. The margin filters All,
+Critical, Important, Refinements, and Deletions. One discussion expands at a time
+while the rest stay compact and aligned to their source spans.
+
+### 3. Save the review file
+
+Chromium browsers support the smooth path:
+
+1. Drag `plan-view.html` from Finder onto its own browser window once, or choose
+   the same file through the inline first-save control.
+2. The browser grants a handle to that exact file.
+3. Later Save clicks and `Cmd+S` write back to the same HTML file.
+
+Chromium controls the initial file-picker folder. The browser does not expose a
+reliable API for an HTML file to choose a different folder on the user's behalf.
+
+Firefox and Safari cannot grant an in-place file handle. Save triggers a download
+of the updated `-view.html`, which replaces the prior copy manually.
+
+The viewer also autosaves to browser-local storage and warns before closing with
+unsaved work. That cache protects the local reviewer only; saving the HTML is what
+makes review work portable.
+
+### 4. Return the feedback to the author or AI
+
+For a readable terminal digest:
+
+```sh
+python3 distill.py plan-view.html
+```
+
+For an agent that can already read `plan.md`, use the compact structured packet:
+
+```sh
+python3 distill.py --packet plan-view.html
+```
+
+The packet contains operations such as `note` and `delete`, priority, author,
+thread messages, quote plus prefix/suffix anchor, reviewed and current source
+locations, and source hashes. It does **not** duplicate the document text.
+
+After revision, rebuild the view from the Markdown source:
+
+```sh
+python3 build-view.py plan.md
+```
+
+Existing notes carry forward. Their source anchors are checked against the newly
+baked Markdown snapshot.
+
+## When the Source Changes
+
+An AI or author can change the Markdown after a review pass. A comment should not
+silently jump to another similar sentence just because the original moved.
+
+Marginalia stores the selected quote with prefix and suffix context. On rebuild and
+collection it tries to locate that span in the source. The result is explicit:
+
+- **Located:** the digest gives a current source line address.
+- **Text changed / unlocated:** the note remains visible with its original quote.
+  Select the replacement passage in the viewer and use **Reattach**. The system
+  never guesses a new target for a reviewer.
+- **Source diverged:** the digest and packet mark that the current Markdown differs
+  from the reviewed snapshot, so the receiving agent verifies the span before
+  editing.
+
+This is why the feedback remains useful after one revision without pretending that
+an anchor is infallible.
+
+## Parallel Reviewers
+
+Running `distill.py` also writes `<doc>.notes.json`: a git-friendly derived ledger
+containing the source hash and notes. Commit it when review history belongs in the
 repository.
 
-Parallel reviews merge without overwriting one another:
+Merge sidecars from independent reviewers only when they refer to the same source
+snapshot:
 
 ```sh
 python3 merge-ledgers.py reviewer-a.notes.json reviewer-b.notes.json \
   --out plan.notes.json --view plan-view.html
 ```
 
-The merge accepts only sidecars for the same Markdown snapshot. Independent notes
-are preserved, shared threads union by entry ID, and a note remains open until all
-copies resolve it.
+The merge keeps independent notes, unions messages for the same globally identified
+note, retains the highest priority if copies disagree, and leaves a note unresolved
+until every copy resolves it. It refuses to inject the merged ledger into a view
+whose embedded Markdown snapshot has a different hash.
 
-## Agent Skills
+The sidecar is review history, not a second source of truth. Importing it into a
+view is always explicit through `--view`.
 
-Marginalia is a set of agent skills packaged as a Claude Code plugin. The same
-canonical skill folders also install directly into Codex:
-
-```sh
-./scripts/install-agent-skills.sh
-```
-
-The installer creates symlinks and refuses to replace an existing local skill.
-Restart the relevant agent after installation.
-
-| Agent | Installed form | Commands |
-| --- | --- | --- |
-| Claude Code | Local `marginalia` plugin | `/margin-send`, `/margin-collect`, `/margin-merge` |
-| Codex | Direct local skills | `margin-send`, `margin-collect`, `margin-merge` |
-
-For a one-off Claude Code session without installation:
-
-```sh
-claude --plugin-dir "$PWD"
-```
-
-## Browser Behaviour
-
-The viewer follows the operating-system theme by default and remembers a manual
-theme choice. It autosaves locally, warns before closing with unsaved work, and
-supports `Cmd+S`.
-
-Chromium’s File System Access API controls in-place saving. The browser chooses
-the first-save folder, but after the view is armed with its own file handle, later
-saves write directly back to that file. The viewer cannot override Chromium’s
-folder-picker policy.
-
-The browser keeps unsaved review state in local storage for the same view file on
-the same machine. The saved HTML remains the portable artifact sent to another
-reviewer. Marginalia makes no network requests at runtime.
-
-## Repository Layout
+## Collection Reference
 
 ```text
-build-view.py       bake Markdown into a standalone viewer
-template.html       viewer UI and embedded client logic
-distill.py          digest, packet, staleness, and sidecar output
-merge-ledgers.py    merge parallel sidecars safely
-margin_anchor.py    quote anchoring and Markdown source mapping
-skills/             send, collect, and merge workflows for agents
-samples/            maintained Markdown example
-tests/              Python and Node verification
+python3 distill.py [--all] [--context=N] [--source=PATH] [--packet] [--no-sidecar] <doc-view.html>
 ```
 
-## Verification
+| Option | Effect |
+| --- | --- |
+| `--all` | Include resolved notes. |
+| `--context=N` | Include `N` surrounding source lines for each located note. |
+| `--source=PATH` | Use an explicit current Markdown file rather than the sibling source. |
+| `--packet` | Emit JSON operations for an agent. |
+| `--no-sidecar` | Do not write the derived `<doc>.notes.json` ledger. |
+
+The digest is the default review payload for a human or an agent that only needs
+the requested changes. The source file enters AI context only when the agent must
+actually revise it.
+
+## Release Demo
+
+The checked-in [release fixture](samples/release-demo.md) and
+[review ledger](samples/release-demo.notes.json) reproduce the screenshots and the
+complete return path:
+
+```sh
+./scripts/build-release-demo.sh
+open -a Helium samples/release-demo-view.html
+python3 distill.py --no-sidecar samples/release-demo-view.html
+python3 distill.py --packet --no-sidecar samples/release-demo-view.html
+```
+
+The demo contains a Critical two-reviewer discussion, an Important note, and a
+Strike deletion.
+
+![A focused Marginalia thread with two reviewer signatures and a reply composer.](docs/screenshots/release-demo-thread-dark.jpg)
+
+## Data, Privacy, and Boundaries
+
+- The baked view contains the reviewed Markdown snapshot and review ledger as
+  base64-encoded blocks. It runs without a network connection.
+- The viewer makes no runtime network requests and sends no review data anywhere.
+- Browser-local autosave is per browser profile and per document name. It is a
+  recovery aid, not collaboration storage.
+- The saved HTML is the portable handoff between reviewers.
+- The Markdown source remains the document that authors and agents edit.
+- The sidecar ledger is optional, derived review history for git and parallel
+  merge, never a hidden replacement for the Markdown source.
+
+## Repository Map
+
+```text
+template.html                    viewer UI and client-side review logic
+build-view.py                    bakes Markdown into a standalone view
+distill.py                       digest, revision packet, staleness, sidecar output
+merge-ledgers.py                 safe parallel-sidecar merge and explicit import
+margin_anchor.py                 quote anchoring and Markdown source mapping
+skills/                          Claude Code and Codex review workflows
+samples/                         minimal and release-demo fixtures
+docs/screenshots/                checked-in release screenshots
+tests/                           Python and Node verification
+```
+
+## Development Verification
 
 ```sh
 python3 -m pytest tests/
 node --test tests/*.mjs
+claude plugins validate .
 ```
+
+The release-demo builder also verifies, through the real merge/import path, that
+its ledger belongs to the source it embeds.
