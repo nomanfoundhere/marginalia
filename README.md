@@ -1,5 +1,9 @@
 # Marginalia
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/assets/marginalia-icon-transparent.png" width="220" alt="Marginalia medieval manuscript icon with an annotated book and crozier">
+</p>
+
 **A portable review pass for Markdown that returns precise human feedback to an
 AI without repeatedly re-ingesting the entire document.**
 
@@ -410,14 +414,15 @@ margin_anchor.py                 quote anchoring and Markdown source mapping
 skills/                          Claude Code and Codex review workflows
 samples/                         minimal and release-demo fixtures
 docs/screenshots/                checked-in release screenshots
+docs/assets/                     project artwork and app icon
 tests/                           Python and Node verification
 ```
 
 ## Development Verification
 
 ```sh
-python3 -m pytest tests/
-node --test tests/*.mjs
+npm test
+npm pack --dry-run
 claude plugins validate .
 ```
 
