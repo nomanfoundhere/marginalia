@@ -146,6 +146,12 @@ body {
   margin: 1.25rem auto; }
 #margin-doc .katex-display { max-width: 100%; max-inline-size: 100%; overflow-x: auto; overflow-y: hidden;
   margin: 1.1em 0; padding: .2em 0 .45em; }
+#margin-doc .mn-math-hl { cursor: pointer; border-radius: 3px; outline: 2px solid var(--accent); outline-offset: 2px; }
+#margin-doc .mn-math-hl.hl-critical { background: var(--hl-critical); outline-color: var(--critical); }
+#margin-doc .mn-math-hl.hl-important { background: var(--hl-important); outline-color: var(--important); }
+#margin-doc .mn-math-hl.hl-refinement { background: var(--hl-refinement); outline-color: var(--refinement); }
+#margin-doc .mn-math-hl.hl-strike { background: var(--hl-delete); outline-color: var(--delete); text-decoration: line-through; }
+#margin-doc .mn-math-hl.is-muted { opacity: .28; }
 
 mark.mn-hl {
   color: inherit; cursor: pointer; border-radius: 2px; padding-bottom: 1px;
@@ -574,17 +580,27 @@ mark.mn-hl.is-muted { opacity: .28; }
       output: 'htmlAndMathml', throwOnError: false, strict: 'ignore'
     });
   }
+  doc.querySelectorAll('.katex').forEach(function (math) {
+    var source = math.querySelector('annotation[encoding="application/x-tex"]');
+    if (source) math.dataset.mnSource = source.textContent;
+  });
+
+  function headingText(heading) {
+    var copy = heading.cloneNode(true);
+    copy.querySelectorAll('.katex').forEach(function (math) {
+      var source = math.querySelector('annotation[encoding="application/x-tex"]');
+      math.replaceWith(document.createTextNode(source ? source.textContent : 'equation'));
+    });
+    return copy.textContent.trim();
+  }
 
   function buildHeadingIndex() {
     var levels = [null, null, null, null, null, null];
     return Array.prototype.slice.call(doc.querySelectorAll('h1, h2, h3, h4, h5, h6')).map(function (heading) {
       var level = parseInt(heading.tagName.slice(1), 10);
-      levels[level - 1] = heading.textContent.trim();
+      levels[level - 1] = headingText(heading);
       for (var index = level; index < levels.length; index++) levels[index] = null;
-      var before = document.createRange();
-      before.setStart(doc, 0); before.setEndBefore(heading);
-      var start = before.toString().length;
-      before.detach();
+      var start = flatOffsetAt(heading.parentNode, Array.prototype.indexOf.call(heading.parentNode.childNodes, heading));
       return { start: start, path: levels.filter(function (title) { return title; }) };
     });
   }
@@ -608,7 +624,7 @@ mark.mn-hl.is-muted { opacity: .28; }
       if (!heading.id) heading.id = 'mn-section-' + index;
       var item = document.createElement('button'); item.type = 'button'; item.className = 'mn-map-item';
       item.dataset.level = heading.tagName.slice(1); item.dataset.target = heading.id;
-      item.textContent = heading.textContent.trim() || 'Untitled section';
+      item.textContent = headingText(heading) || 'Untitled section';
       item.setAttribute('aria-current', 'false');
       item.addEventListener('click', function () { heading.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
       items.push({ heading: heading, item: item }); list.appendChild(item);
@@ -643,10 +659,23 @@ mark.mn-hl.is-muted { opacity: .28; }
     var arr = [], n; while ((n = w.nextNode())) arr.push(n); return arr;
   }
   function flatText() { return textNodes().map(function (t) { return t.nodeValue; }).join(''); }
-  function rangeTouchesMath(range) {
-    return Array.prototype.some.call(doc.querySelectorAll('.katex'), function (math) {
+  function mathNodesInRange(range) {
+    return Array.prototype.filter.call(doc.querySelectorAll('.katex'), function (math) {
       return range.intersectsNode(math);
     });
+  }
+  function uniqueMathForSource(source) {
+    var matches = Array.prototype.filter.call(doc.querySelectorAll('.katex'), function (math) {
+      return math.dataset.mnSource === source;
+    });
+    return matches.length === 1 ? matches[0] : null;
+  }
+  function mathForRange(range) {
+    var matches = mathNodesInRange(range);
+    if (matches.length !== 1) return null;
+    var math = matches[0];
+    if (!math.contains(range.startContainer) || !math.contains(range.endContainer)) return null;
+    return math.dataset.mnSource && uniqueMathForSource(math.dataset.mnSource) === math ? math : null;
   }
   function flatOffsetAt(container, offset) {
     var boundary = document.createRange();
@@ -674,6 +703,14 @@ mark.mn-hl.is-muted { opacity: .28; }
     var r = sel.getRangeAt(0);
     return { start: flatOffsetAt(r.startContainer, r.startOffset), quote: sel.toString() };
   }
+  function flatOffsetBefore(node) {
+    var parent = node.parentNode;
+    return flatOffsetAt(parent, Array.prototype.indexOf.call(parent.childNodes, node));
+  }
+  function mathAnchor(math) {
+    var start = flatOffsetBefore(math);
+    return { quote: math.dataset.mnSource, prefix: '', suffix: '', math: true, sectionPath: sectionPathAt(start) };
+  }
 
   // --- selection toolbar: priority note or explicit deletion ---
   var tools = document.createElement('div');
@@ -696,7 +733,15 @@ mark.mn-hl.is-muted { opacity: .28; }
   }
   function anchorFromSelection() {
     var sel = document.getSelection();
-    if (!sel || sel.isCollapsed || rangeTouchesMath(sel.getRangeAt(0))) return null;
+    if (!sel || sel.isCollapsed) return null;
+    var range = sel.getRangeAt(0);
+    var math = mathForRange(range);
+    if (math) {
+      var formulaAnchor = mathAnchor(math);
+      hideTools(); sel.removeAllRanges();
+      return formulaAnchor;
+    }
+    if (mathNodesInRange(range).length) return null;
     var flat = flatFromSelection(sel);
     var text = flatText();
     var anchor = {
@@ -735,7 +780,8 @@ mark.mn-hl.is-muted { opacity: .28; }
   document.addEventListener('selectionchange', function () {
     var sel = document.getSelection();
     if (!sel || sel.isCollapsed || !doc.contains(sel.anchorNode)) { hideTools(); return; }
-    if (rangeTouchesMath(sel.getRangeAt(0))) { hideTools(); return; }
+    var selectedMath = mathForRange(sel.getRangeAt(0));
+    if (mathNodesInRange(sel.getRangeAt(0)).length && !selectedMath) { hideTools(); return; }
     hideMarkTools();
     var rect = sel.getRangeAt(0).getBoundingClientRect();
     if (!rect.width) { hideTools(); return; }
@@ -802,6 +848,13 @@ mark.mn-hl.is-muted { opacity: .28; }
     paintHighlights(); renderRail(); markDirty(); focusDraft(n.id, draftIndex);
   }
   function matchingNote(anchor) {
+    if (anchor.math) {
+      for (var m = 0; m < state.notes.length; m++) {
+        var mathNote = state.notes[m];
+        if (!mathNote.resolved && mathNote.anchor && mathNote.anchor.math && mathNote.anchor.quote === anchor.quote) return mathNote;
+      }
+      return null;
+    }
     var idx = globalThis.MarginCore.locateAnchor(flatText(), anchor);
     if (idx < 0) return null;
     for (var i = 0; i < state.notes.length; i++) {
@@ -866,7 +919,7 @@ mark.mn-hl.is-muted { opacity: .28; }
   markTools.addEventListener('click', function (e) { e.stopPropagation(); });
   document.addEventListener('click', function (e) {
     if (markTools.hidden || markTools.contains(e.target)) return;
-    if (e.target.closest && e.target.closest('mark.mn-hl')) return;
+    if (e.target.closest && e.target.closest('mark.mn-hl, .mn-math-hl')) return;
     hideMarkTools();
   });
 
@@ -875,11 +928,32 @@ mark.mn-hl.is-muted { opacity: .28; }
     doc.querySelectorAll('mark.mn-hl').forEach(function (m) {
       var parent = m.parentNode; while (m.firstChild) parent.insertBefore(m.firstChild, m); parent.removeChild(m);
     });
+    doc.querySelectorAll('.mn-math-hl').forEach(function (math) {
+      math.classList.remove('mn-math-hl', 'hl-critical', 'hl-important', 'hl-refinement', 'hl-strike', 'is-muted');
+      math.removeAttribute('data-note'); math.removeAttribute('tabindex'); math.removeAttribute('title');
+      math.onclick = null; math.onkeydown = null;
+    });
     doc.normalize();
     var text = flatText();
     state.notes.forEach(function (n) {
       n._located = -1;
       if (n.resolved) return;
+      if (n.anchor && n.anchor.math) {
+        var math = uniqueMathForSource(n.anchor.quote);
+        if (!math) return;
+        n._located = 0;
+        n._sectionPath = (n.anchor.sectionPath && n.anchor.sectionPath.length) ? n.anchor.sectionPath : sectionPathAt(flatOffsetBefore(math));
+        math.classList.add('mn-math-hl', n.kind === 'strike' ? 'hl-strike' : 'hl-' + n.priority);
+        math.dataset.note = n.id; math.tabIndex = 0; math.title = noteLabel(n) + ': click to open';
+        if (activeFilter !== 'all' && activeFilter !== 'deletions' && n.priority !== activeFilter) math.classList.add('is-muted');
+        if (activeFilter === 'deletions' && n.kind !== 'strike') math.classList.add('is-muted');
+        if (!scopeMatches(n)) math.classList.add('is-muted');
+        math.onclick = function (e) { e.stopPropagation(); showMarkTools(math); };
+        math.onkeydown = function (e) {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); showMarkTools(math); }
+        };
+        return;
+      }
       var idx = globalThis.MarginCore.locateAnchor(text, n.anchor);
       n._located = idx;
       if (idx < 0) return;

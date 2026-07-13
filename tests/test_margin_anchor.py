@@ -48,6 +48,13 @@ def test_locate_in_source_ambiguous_uses_affixes():
 def test_locate_in_source_missing():
     assert margin_anchor.locate_in_source(SRC, {"quote": "not present"}) is None
 
+def test_locate_in_source_math_anchor_uses_original_tex():
+    source = "The response is $x(t) = \\frac{a}{b}$.\n"
+    quote = "x(t) = \\frac{a}{b}"
+    span = margin_anchor.locate_in_source(source, {"quote": quote})
+    assert span is not None
+    assert source[span[0]:span[1]] == quote
+
 def test_line_range():
     start = SRC.index("authenticate")
     assert margin_anchor.line_range(SRC, start, start + 5) == "3"
