@@ -47,6 +47,7 @@
   "scripts": {
     "test": "python3 -m pytest tests/ -q && node --test tests/*.mjs",
     "check": "npm run test && claude plugins validate .",
-    "pack:check": "npm pack --dry-run"
+    "pack:check": "npm pack --dry-run",
+    "screenshots:readme": "node scripts/capture-readme.mjs --style ink --release"
   }
 }

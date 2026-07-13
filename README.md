@@ -1,7 +1,7 @@
 # Marginalia
 
 <p align="center">
-  <img src="docs/assets/marginalia-icon-transparent.png" width="220" alt="Marginalia medieval manuscript icon with an annotated book and crozier">
+  <img src="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/assets/marginalia-icon-transparent.png" width="220" alt="Marginalia medieval manuscript icon with an annotated book and crozier">
 </p>
 
 **A portable review pass for Markdown that returns precise human feedback to an
@@ -18,7 +18,11 @@ LaTeX with KaTeX. Images preserve their original aspect ratio and downscale to
 the reading column; equations, fonts, and the renderer itself stay inside the
 offline HTML file.
 
-![The complete Marginalia desktop workspace, annotated with numbered feature callouts.](docs/screenshots/release-demo-annotated.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-dark-annotated.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-light-annotated.png">
+  <img src="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-light-annotated.png" alt="The complete Marginalia desktop workspace, annotated with numbered feature callouts.">
+</picture>
 
 The numbered view shows the complete handoff in one frame:
 
@@ -31,6 +35,7 @@ The numbered view shows the complete handoff in one frame:
 | 5 | The review queue and round controls. |
 | 6 | Priority filters for Critical, Important, Refinement, and Deletion work. |
 | 7 | The exact source passage attached to the open discussion. |
+| 8 | Persistent reading-size controls that scale the document without changing its Markdown. |
 | 9 | A revision receipt recording what an agent changed and what remains. |
 | 10 | Distinct reviewer signatures and the discussion they produced. |
 | 11 | The reply composer for continuing the source-linked discussion. |
@@ -407,7 +412,19 @@ The demo contains a Critical two-reviewer discussion with a revision receipt, an
 Important note, a Strike deletion, a first review round, the desktop document map,
 and labelled toolbar states.
 
-![A focused Marginalia thread with a revision receipt, two reviewer signatures, and a reply composer.](docs/screenshots/release-demo-thread-dark.jpeg)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-thread-dark.png">
+  <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-thread-light.png">
+  <img src="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-thread-light.png" alt="A focused Marginalia thread with a revision receipt, two reviewer signatures, and a reply composer.">
+</picture>
+
+The README screenshots are generated from the same fixture in fresh headless
+Chrome profiles. The fixed clock, viewport, reviewer, round, and note state keep
+the output reproducible while the dark and light captures exercise both themes:
+
+```sh
+npm run screenshots:readme
+```
 
 ## Data, Privacy, and Boundaries
 
