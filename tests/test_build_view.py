@@ -41,6 +41,8 @@ def test_fresh_build_embeds_source_and_empty_notes(tmp_path):
     # Reader-local text controls are present in every baked artifact.
     assert "mn-text-scale" in html
     assert "Increase reading text size" in html
+    assert "mn-reader-tools" in html
+    assert "mn-arm-actions" in html
 
 def test_rebuild_carries_existing_notes_forward(tmp_path):
     doc = tmp_path / "plan.md"

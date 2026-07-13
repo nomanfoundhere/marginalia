@@ -105,10 +105,11 @@ keep all three columns readable.
 The top strip names the state of each control: **Reviewing as** identifies the
 author for new notes and replies, **Document** names the source being reviewed,
 **File** distinguishes an on-disk save from a browser-local draft, **Appearance**
-changes the theme, **Text size** changes only the reading column, and **View**
-controls whether resolved discussions remain visible. Text size is remembered on
-the current Mac and never changes the shared review file or another reviewer's
-view.
+changes the theme, and **View** controls whether resolved discussions remain
+visible. The **Reading** controls above the document map change only the reading
+column. They return to the top strip when the map collapses at narrower widths.
+Text size is remembered on the current Mac and never changes the shared review
+file or another reviewer's view.
 
 ## Requirements
 

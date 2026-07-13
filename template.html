@@ -85,6 +85,10 @@ body {
 .mn-text-scale { min-width: 3.25rem; padding: .34rem .25rem; border: 0; background: transparent; color: var(--ink-2);
   font: 650 .78rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; text-align: center; }
 .mn-text-scale:hover { color: var(--accent); text-decoration: underline; }
+.mn-reader-tools { margin-bottom: 1.2rem; }
+.mn-reader-tools .mn-text-controls { display: grid; grid-template-columns: minmax(2rem, 1fr) minmax(2.75rem, auto) minmax(2rem, 1fr);
+  width: 100%; gap: .15rem; }
+.mn-reader-tools .mn-text-button, .mn-reader-tools .mn-text-scale { min-width: 0; padding-inline: .25rem; }
 .mn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .mn-primary:hover { background: var(--accent); border-color: var(--accent); filter: brightness(1.06); }
 
@@ -338,14 +342,20 @@ mark.mn-hl.is-muted { opacity: .28; }
    in both themes: #fff on #b91c1c is ~5.9:1, clearing WCAG AA. */
 .mn-banner { padding: .6rem 1rem; background: #b91c1c; color: #fff; font-size: .85rem; line-height: 1.4; text-align: center; }
 /* save arming bar — the one-time gesture that lets the file write itself */
-.mn-armbar { display: flex; gap: .6rem; align-items: center; justify-content: center;
-  flex-wrap: wrap; padding: .45rem 1rem; font-size: .82rem; color: var(--ink-2);
+.mn-armbar { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .6rem 1rem; align-items: center;
+  padding: .45rem 1rem; font-size: .82rem; color: var(--ink-2);
   background: var(--field); border-bottom: 1px solid var(--line); }
+.mn-arm-message { min-width: 0; text-align: center; overflow-wrap: anywhere; }
 .mn-armbar code { font-family: ui-monospace, monospace; color: var(--ink);
   background: var(--panel); border: 1px solid var(--line); border-radius: 4px;
-  padding: .05em .3em; }
+  padding: .05em .3em; overflow-wrap: anywhere; }
+.mn-arm-actions { display: inline-flex; align-items: center; gap: .45rem; white-space: nowrap; }
 .mn-armbar .mn-btn { font-size: .78rem; padding: .2rem .55rem; }
 .mn-armbar.mn-drag { outline: 2px dashed var(--accent); outline-offset: -3px; }
+@media (max-width: 560px) {
+  .mn-armbar { grid-template-columns: minmax(0, 1fr); }
+  .mn-arm-actions { justify-content: center; }
+}
 </style>
 </head>
 <body>
@@ -1443,13 +1453,15 @@ mark.mn-hl.is-muted { opacity: .28; }
   var documentField = toolbarField('Document', 'grow'); documentField.appendChild(title);
   var fileField = toolbarField('File'); fileField.appendChild(saveBtn); fileField.appendChild(stateChip);
   var appearanceField = toolbarField('Appearance'); appearanceField.appendChild(themeBtn);
-  var textField = toolbarField('Text size'); textField.appendChild(textControls);
+  var textField = toolbarField('Text size');
+  var readingTools = document.createElement('div'); readingTools.className = 'mn-reader-tools';
+  var readingLabel = document.createElement('span'); readingLabel.className = 'mn-map-label'; readingLabel.textContent = 'Reading';
+  readingTools.appendChild(readingLabel);
   var viewField = toolbarField('View'); viewField.appendChild(hr);
   header.appendChild(reviewerField);
   header.appendChild(documentField);
   header.appendChild(fileField);
   header.appendChild(appearanceField);
-  header.appendChild(textField);
   header.appendChild(viewField);
 
   renderIdentity();
@@ -1460,6 +1472,22 @@ mark.mn-hl.is-muted { opacity: .28; }
   syncHeaderMetrics();
   if (window.ResizeObserver) new ResizeObserver(syncHeaderMetrics).observe(header);
   else window.addEventListener('resize', syncHeaderMetrics);
+  var readerLayout = window.matchMedia('(min-width: 1000px)');
+  function placeTextControls() {
+    if (readerLayout.matches) {
+      readingTools.appendChild(textControls);
+      map.insertBefore(readingTools, map.firstChild);
+      if (textField.parentNode) textField.remove();
+    } else {
+      textField.appendChild(textControls);
+      header.insertBefore(textField, viewField);
+      if (readingTools.parentNode) readingTools.remove();
+    }
+    requestAnimationFrame(syncHeaderMetrics);
+  }
+  placeTextControls();
+  if (readerLayout.addEventListener) readerLayout.addEventListener('change', placeTextControls);
+  else readerLayout.addListener(placeTextControls);
 
   // --- theme toggle ---
   function currentTheme() { return document.documentElement.getAttribute('data-theme') || 'light'; }
@@ -1607,18 +1635,19 @@ mark.mn-hl.is-muted { opacity: .28; }
   function showArmBar() {
     if (armBar || !window.showOpenFilePicker || location.protocol !== 'file:') return;
     armBar = document.createElement('div'); armBar.className = 'mn-armbar';
-    var msg = document.createElement('span');
+    var msg = document.createElement('span'); msg.className = 'mn-arm-message';
     msg.appendChild(document.createTextNode('To let this file save itself, drag it from Finder onto this window — it lives at '));
     var c = document.createElement('code'); c.textContent = ownPath();
-    msg.appendChild(c); msg.appendChild(document.createTextNode(' — or '));
+    msg.appendChild(c);
     armBar.appendChild(msg);
+    var actions = document.createElement('div'); actions.className = 'mn-arm-actions';
     var pick = document.createElement('button'); pick.className = 'mn-btn';
-    pick.textContent = 'choose it once';
+    pick.textContent = 'Choose file once';
     pick.addEventListener('click', function () { pickOwnFile().catch(function () {}); });
     var dismiss = document.createElement('button'); dismiss.className = 'mn-icon';
     dismiss.textContent = '×'; dismiss.setAttribute('aria-label', 'Dismiss');
     dismiss.addEventListener('click', removeArmBar);
-    armBar.appendChild(pick); armBar.appendChild(dismiss);
+    actions.appendChild(pick); actions.appendChild(dismiss); armBar.appendChild(actions);
     // Above the sticky header, same slot the corrupt-data banner uses.
     document.body.insertBefore(armBar, header);
   }
