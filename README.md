@@ -145,6 +145,17 @@ git clone https://github.com/nomanfoundhere/marginalia.git
 cd marginalia
 ```
 
+Expose that checkout as the global development command:
+
+```sh
+npm link
+marginalia --help
+```
+
+`npm link` creates a global symlink to the checkout, so subsequent `marginalia`
+commands run the files you are editing. Cloning alone intentionally does not add
+repository scripts to your shell `PATH`.
+
 Run a direct smoke test:
 
 ```sh
