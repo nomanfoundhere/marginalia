@@ -1,7 +1,7 @@
 # Marginalia
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/assets/marginalia-icon-transparent.png" width="220" alt="Marginalia medieval manuscript icon with an annotated book and crozier">
+  <img src="docs/assets/marginalia-icon-transparent.png" width="220" alt="Marginalia medieval manuscript icon with an annotated book and crozier">
 </p>
 
 **A portable review pass for Markdown that returns precise human feedback to an
@@ -13,7 +13,7 @@ deletion, reply in context, and send the same file back. The author or an AI the
 receives a compact digest or structured revision packet with the feedback's
 location, intent, and discussion intact.
 
-![The complete Marginalia desktop workspace, annotated with numbered feature callouts.](https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-annotated.png)
+![The complete Marginalia desktop workspace, annotated with numbered feature callouts.](docs/screenshots/release-demo-annotated.png)
 
 The numbered view shows the complete handoff in one frame:
 
@@ -388,7 +388,7 @@ The demo contains a Critical two-reviewer discussion with a revision receipt, an
 Important note, a Strike deletion, a first review round, the desktop document map,
 and labelled toolbar states.
 
-![A focused Marginalia thread with a revision receipt, two reviewer signatures, and a reply composer.](https://raw.githubusercontent.com/nomanfoundhere/marginalia/main/docs/screenshots/release-demo-thread-dark.jpeg)
+![A focused Marginalia thread with a revision receipt, two reviewer signatures, and a reply composer.](docs/screenshots/release-demo-thread-dark.jpeg)
 
 ## Data, Privacy, and Boundaries
 
