@@ -80,6 +80,11 @@ body {
 .mn-state { font-size: .84rem; color: var(--ink-3); white-space: nowrap; }
 .mn-state[data-state="dirty"] { color: var(--accent); }
 .mn-toolbar-button { min-height: 2.25rem; padding: .34rem .66rem; border-radius: 6px; box-shadow: none; font-size: .84rem; }
+.mn-text-controls { display: inline-flex; align-items: center; gap: .2rem; }
+.mn-text-button { min-width: 2.25rem; padding-inline: .35rem; font-size: .83rem; font-weight: 700; }
+.mn-text-scale { min-width: 3.25rem; padding: .34rem .25rem; border: 0; background: transparent; color: var(--ink-2);
+  font: 650 .78rem/1 -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; text-align: center; }
+.mn-text-scale:hover { color: var(--accent); text-decoration: underline; }
 .mn-primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
 .mn-primary:hover { background: var(--accent); border-color: var(--accent); filter: brightness(1.06); }
 
@@ -124,13 +129,14 @@ body {
   background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
   box-shadow: var(--shadow); padding: clamp(1.6rem, 4vw, 3rem) clamp(1.25rem, 4vw, 3rem);
   min-width: 0;
-  font: 16px/1.7 -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-family: -apple-system, "Segoe UI", system-ui, sans-serif;
+  font-size: 16px; line-height: 1.7;
 }
 #margin-doc h1, #margin-doc h2, #margin-doc h3 {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
   line-height: 1.18; letter-spacing: 0; color: var(--ink); scroll-margin-top: calc(var(--mn-header-height, 4.2rem) + 1rem);
 }
-#margin-doc h1 { font-size: clamp(1.8rem, 3vw, 2.55rem); margin-top: 0; }
+#margin-doc h1 { font-size: clamp(var(--mn-h1-min, 1.8rem), var(--mn-h1-fluid, 3vw), var(--mn-h1-max, 2.55rem)); margin-top: 0; }
 #margin-doc h2 { margin-top: 2.2em; }
 #margin-doc pre { background: var(--field); border: 1px solid var(--line);
   border-radius: 8px; padding: .8rem; overflow: auto; }
@@ -1396,18 +1402,58 @@ mark.mn-hl.is-muted { opacity: .28; }
   cb.addEventListener('change', function () { hideResolved = cb.checked; renderRail(); });
   hr.appendChild(cb); hr.appendChild(document.createTextNode('hide resolved'));
 
+  // Text size is viewer-local. It changes the reading surface, never the
+  // shared ledger or the navigation/review controls around it.
+  var textScale = 1;
+  try { textScale = normalizedTextScale(localStorage.getItem('mn-text-scale')); } catch (e) {}
+  var textSmallerBtn = document.createElement('button'); textSmallerBtn.type = 'button';
+  textSmallerBtn.className = 'mn-btn mn-toolbar-button mn-text-button'; textSmallerBtn.textContent = 'A-';
+  textSmallerBtn.setAttribute('aria-label', 'Decrease reading text size');
+  var textScaleValue = document.createElement('button'); textScaleValue.type = 'button';
+  textScaleValue.className = 'mn-text-scale'; textScaleValue.setAttribute('aria-label', 'Reset reading text size to 100 percent');
+  textScaleValue.setAttribute('title', 'Reset to 100%');
+  var textLargerBtn = document.createElement('button'); textLargerBtn.type = 'button';
+  textLargerBtn.className = 'mn-btn mn-toolbar-button mn-text-button'; textLargerBtn.textContent = 'A+';
+  textLargerBtn.setAttribute('aria-label', 'Increase reading text size');
+  var textControls = document.createElement('div'); textControls.className = 'mn-text-controls';
+  textControls.appendChild(textSmallerBtn); textControls.appendChild(textScaleValue); textControls.appendChild(textLargerBtn);
+
+  function normalizedTextScale(value) {
+    var scale = Number(value);
+    if (!isFinite(scale)) return 1;
+    return Math.max(.8, Math.min(1.6, Math.round(scale * 10) / 10));
+  }
+  function applyTextScale(next, persist) {
+    textScale = normalizedTextScale(next);
+    doc.style.fontSize = (16 * textScale) + 'px';
+    doc.style.setProperty('--mn-h1-min', (28.8 * textScale) + 'px');
+    doc.style.setProperty('--mn-h1-fluid', (3 * textScale) + 'vw');
+    doc.style.setProperty('--mn-h1-max', (40.8 * textScale) + 'px');
+    textScaleValue.textContent = Math.round(textScale * 100) + '%';
+    textSmallerBtn.disabled = textScale <= .8;
+    textLargerBtn.disabled = textScale >= 1.6;
+    if (persist) try { localStorage.setItem('mn-text-scale', String(textScale)); } catch (e) {}
+    requestAnimationFrame(placeCards);
+  }
+  textSmallerBtn.addEventListener('click', function () { applyTextScale(textScale - .1, true); });
+  textScaleValue.addEventListener('click', function () { applyTextScale(1, true); });
+  textLargerBtn.addEventListener('click', function () { applyTextScale(textScale + .1, true); });
+
   var reviewerField = toolbarField('Reviewing as'); reviewerField.appendChild(idWrap);
   var documentField = toolbarField('Document', 'grow'); documentField.appendChild(title);
   var fileField = toolbarField('File'); fileField.appendChild(saveBtn); fileField.appendChild(stateChip);
   var appearanceField = toolbarField('Appearance'); appearanceField.appendChild(themeBtn);
+  var textField = toolbarField('Text size'); textField.appendChild(textControls);
   var viewField = toolbarField('View'); viewField.appendChild(hr);
   header.appendChild(reviewerField);
   header.appendChild(documentField);
   header.appendChild(fileField);
   header.appendChild(appearanceField);
+  header.appendChild(textField);
   header.appendChild(viewField);
 
   renderIdentity();
+  applyTextScale(textScale, false);
   function syncHeaderMetrics() {
     document.documentElement.style.setProperty('--mn-header-height', header.getBoundingClientRect().height + 'px');
   }
