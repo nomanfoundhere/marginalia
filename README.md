@@ -13,6 +13,11 @@ deletion, reply in context, and send the same file back. The author or an AI the
 receives a compact digest or structured revision packet with the feedback's
 location, intent, and discussion intact.
 
+The baked viewer renders standard Markdown, local images, and inline or display
+LaTeX with KaTeX. Images preserve their original aspect ratio and downscale to
+the reading column; equations, fonts, and the renderer itself stay inside the
+offline HTML file.
+
 ![The complete Marginalia desktop workspace, annotated with numbered feature callouts.](docs/screenshots/release-demo-annotated.png)
 
 The numbered view shows the complete handoff in one frame:

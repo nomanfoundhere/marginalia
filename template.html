@@ -19,6 +19,7 @@
 </script>
 <style>
 * { box-sizing: border-box; }
+/*MARGIN_KATEX_CSS*/
 
 html[data-theme="light"] {
   --desk: #eef1f7; --panel: #ffffff;
@@ -141,6 +142,10 @@ body {
   padding-left: 1rem; color: var(--ink-2); }
 #margin-doc table { border-collapse: collapse; }
 #margin-doc th, #margin-doc td { border: 1px solid var(--line); padding: .3rem .6rem; }
+#margin-doc img { display: block; max-width: 100%; max-inline-size: 100%; height: auto; block-size: auto;
+  margin: 1.25rem auto; }
+#margin-doc .katex-display { max-width: 100%; max-inline-size: 100%; overflow-x: auto; overflow-y: hidden;
+  margin: 1.1em 0; padding: .2em 0 .45em; }
 
 mark.mn-hl {
   color: inherit; cursor: pointer; border-radius: 2px; padding-bottom: 1px;
@@ -341,6 +346,8 @@ mark.mn-hl.is-muted { opacity: .28; }
 <script id="margin-notes" type="text/plain"></script>
 
 <script>/*MARGIN_MARKED*/</script>
+<script>/*MARGIN_KATEX*/</script>
+<script>/*MARGIN_KATEX_AUTO_RENDER*/</script>
 <script>/*MARGIN_CORE*/</script>
 <script>
 (function () {
@@ -556,6 +563,17 @@ mark.mn-hl.is-muted { opacity: .28; }
   doc.parentNode.insertBefore(wrap, doc);
   wrap.appendChild(map); wrap.appendChild(doc); wrap.appendChild(rail);
   doc.innerHTML = globalThis.marked.parse(sourceMd);
+  if (typeof globalThis.renderMathInElement === 'function') {
+    globalThis.renderMathInElement(doc, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false }
+      ],
+      output: 'htmlAndMathml', throwOnError: false, strict: 'ignore'
+    });
+  }
 
   function buildHeadingIndex() {
     var levels = [null, null, null, null, null, null];
@@ -616,10 +634,32 @@ mark.mn-hl.is-muted { opacity: .28; }
 
   // --- flat-text index <-> DOM range over #margin-doc ---
   function textNodes() {
-    var w = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT, null);
+    var w = document.createTreeWalker(doc, NodeFilter.SHOW_TEXT, {
+      acceptNode: function (node) {
+        return node.parentElement && node.parentElement.closest('.katex') ?
+          NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT;
+      }
+    });
     var arr = [], n; while ((n = w.nextNode())) arr.push(n); return arr;
   }
   function flatText() { return textNodes().map(function (t) { return t.nodeValue; }).join(''); }
+  function rangeTouchesMath(range) {
+    return Array.prototype.some.call(doc.querySelectorAll('.katex'), function (math) {
+      return range.intersectsNode(math);
+    });
+  }
+  function flatOffsetAt(container, offset) {
+    var boundary = document.createRange();
+    boundary.setStart(container, offset); boundary.collapse(true);
+    var total = 0;
+    textNodes().forEach(function (node) {
+      var nodeRange = document.createRange(); nodeRange.selectNodeContents(node);
+      if (nodeRange.compareBoundaryPoints(Range.END_TO_START, boundary) <= 0) total += node.nodeValue.length;
+      else if (node === container) total += Math.min(offset, node.nodeValue.length);
+    });
+    boundary.detach();
+    return total;
+  }
   function rangeFromFlat(start, length) {
     var nodes = textNodes(), acc = 0, range = document.createRange(), set = false;
     for (var i = 0; i < nodes.length; i++) {
@@ -632,12 +672,7 @@ mark.mn-hl.is-muted { opacity: .28; }
   }
   function flatFromSelection(sel) {
     var r = sel.getRangeAt(0);
-    var before = document.createRange();
-    before.setStart(doc, 0);
-    before.setEnd(r.startContainer, r.startOffset);
-    var startFlat = before.toString().length;
-    before.detach();
-    return { start: startFlat, quote: sel.toString() };
+    return { start: flatOffsetAt(r.startContainer, r.startOffset), quote: sel.toString() };
   }
 
   // --- selection toolbar: priority note or explicit deletion ---
@@ -661,6 +696,7 @@ mark.mn-hl.is-muted { opacity: .28; }
   }
   function anchorFromSelection() {
     var sel = document.getSelection();
+    if (!sel || sel.isCollapsed || rangeTouchesMath(sel.getRangeAt(0))) return null;
     var flat = flatFromSelection(sel);
     var text = flatText();
     var anchor = {
@@ -676,6 +712,7 @@ mark.mn-hl.is-muted { opacity: .28; }
     btn.addEventListener('mousedown', function (e) {
       e.preventDefault();
       var anchor = anchorFromSelection();
+      if (!anchor) return;
       fn(anchor);
     });
   }
@@ -698,6 +735,7 @@ mark.mn-hl.is-muted { opacity: .28; }
   document.addEventListener('selectionchange', function () {
     var sel = document.getSelection();
     if (!sel || sel.isCollapsed || !doc.contains(sel.anchorNode)) { hideTools(); return; }
+    if (rangeTouchesMath(sel.getRangeAt(0))) { hideTools(); return; }
     hideMarkTools();
     var rect = sel.getRangeAt(0).getBoundingClientRect();
     if (!rect.width) { hideTools(); return; }

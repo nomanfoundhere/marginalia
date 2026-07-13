@@ -29,8 +29,15 @@ def test_fresh_build_embeds_source_and_empty_notes(tmp_path):
     # margin-core.js carries a literal </script> (NOTES_CLOSE); inlining must
     # neutralize it so the HTML parser does not close the script block early.
     assert "<\\/script>" in html
-    # the 6 real script elements: theme-init, source, notes, marked, core, boot
-    assert html.count("</script>") == 6
+    # the 8 real script elements: theme-init, source, notes, marked, KaTeX,
+    # auto-render, core, boot
+    assert html.count("</script>") == 8
+    assert "/*MARGIN_KATEX*/" not in html
+    assert "/*MARGIN_KATEX_AUTO_RENDER*/" not in html
+    assert "/*MARGIN_KATEX_CSS*/" not in html
+    assert "renderMathInElement" in html
+    assert "data:font/woff2;base64," in html
+    assert "url(fonts/" not in html
 
 def test_rebuild_carries_existing_notes_forward(tmp_path):
     doc = tmp_path / "plan.md"
@@ -65,7 +72,6 @@ def test_artifact_has_no_external_resource_references(tmp_path):
     markup = SOURCE_RE.sub("SRC", NOTES_RE.sub("NOTES", html))
     assert not re.search(r'<link\b', markup)                       # no stylesheet/font links
     assert "@import" not in markup                                  # no css imports
-    assert "@font-face" not in markup                              # platform fonts only
     assert not re.search(r'url\(\s*["\']?https?:', markup)         # no remote url() in css
     assert not re.search(r'(?:src|href)\s*=\s*["\']https?:', markup)  # no remote src/href
 
